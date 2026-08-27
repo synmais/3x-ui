@@ -559,6 +559,21 @@ func (t *Tgbot) getClientUsage(chatId int64, tgUserID int64, email ...string) {
 			for _, traffic := range traffics {
 				if traffic.Email == email[0] {
 					output := t.clientInfoMsg(traffic, true, true, true, true, true, true)
+
+					if hwids, err := t.clientService.ListClientHwids(traffic.Email); err == nil {
+						if client, err := t.clientService.GetRecordByEmail(nil, traffic.Email); err == nil && client != nil {
+							if client.LimitHwid > 0 {
+								output += fmt.Sprintf("📱 Устройства: %d / %d\r\n", len(hwids), client.LimitHwid)
+							} else {
+								output += fmt.Sprintf("📱 Устройства: %d / ∞\r\n", len(hwids))
+							}
+						} else if err != nil {
+							logger.Warning(err)
+						}
+					} else {
+						logger.Warning(err)
+					}
+
 					t.SendMsgToTgbot(chatId, output)
 					return
 				}
