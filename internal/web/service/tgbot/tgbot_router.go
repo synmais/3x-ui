@@ -1097,10 +1097,44 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 	case "get_banlogs":
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.getBanLogs"))
 		t.sendBanLogs(chatId, true)
+
 	case "client_traffic":
 		tgUserID := callbackQuery.From.ID
+		traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
+		if err != nil {
+			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation"))
+			return
+		}
+
+		if len(traffics) == 0 {
+			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.askToAddUserId", "TgUserID=="+strconv.FormatInt(tgUserID, 10)))
+			return
+		}
+
+		if len(traffics) == 1 {
+			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.clientUsage"))
+			t.getClientUsage(chatId, tgUserID, traffics[0].Email)
+			return
+		}
+
+		var buttons []telego.InlineKeyboardButton
+		for _, traffic := range traffics {
+			buttons = append(
+				buttons,
+				tu.InlineKeyboardButton(traffic.Email).
+					WithCallbackData(t.encodeQuery("client_traffic "+traffic.Email)),
+			)
+		}
+
+		cols := 1
+		if len(buttons) >= 6 {
+			cols = 2
+		}
+
+		keyboard := tu.InlineKeyboardGrid(tu.InlineKeyboardCols(cols, buttons...))
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.clientUsage"))
-		t.getClientUsage(chatId, tgUserID)
+		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), keyboard)
+
 	case "client_commands":
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.commands"))
 		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.commands.helpClientCommands"))
@@ -1454,6 +1488,13 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 
 		}
 	default:
+
+		if after, ok := strings.CutPrefix(callbackQuery.Data, "client_traffic "); ok {
+			email := after
+			t.getClientUsage(chatId, callbackQuery.From.ID, email)
+			return
+		}
+
 		if after, ok := strings.CutPrefix(callbackQuery.Data, "client_sub_links "); ok {
 			email := after
 			t.sendClientSubLinks(chatId, email)
@@ -1486,7 +1527,8 @@ func isClientSelfCallback(data string) bool {
 		"client_individual_links", "client_qr_links":
 		return true
 	}
-	return strings.HasPrefix(data, "client_sub_links ") ||
+	return strings.HasPrefix(data, "client_traffic ") ||
+		strings.HasPrefix(data, "client_sub_links ") ||
 		strings.HasPrefix(data, "client_individual_links ") ||
 		strings.HasPrefix(data, "client_qr_links ")
 }

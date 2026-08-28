@@ -19,6 +19,7 @@ backup/
 bin/
 x-ui/
 dist/
+build/
 release/
 node_modules/
 
