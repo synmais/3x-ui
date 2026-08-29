@@ -552,6 +552,22 @@ func (t *Tgbot) clientInfoMsg(
 	return output
 }
 
+// showRegistrationPrompt... *some comment*
+func (t *Tgbot) showRegistrationPrompt(chatId int64, tgUserID int64) {
+	inlineKeyboard := tu.InlineKeyboard(
+		tu.InlineKeyboardRow(
+			tu.InlineKeyboardButton("🆕 Зарегистрировать пользователя").
+				WithCallbackData("register_user"),
+		),
+	)
+
+	t.SendMsgToTgbot(
+		chatId,
+		t.I18nBot("tgbot.answers.userNotRegistered"),
+		inlineKeyboard,
+	)
+}
+
 // getClientUsage retrieves and sends client usage information to the chat.
 func (t *Tgbot) getClientUsage(chatId int64, tgUserID int64, email ...string) {
 	traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
@@ -563,7 +579,7 @@ func (t *Tgbot) getClientUsage(chatId int64, tgUserID int64, email ...string) {
 	}
 
 	if len(traffics) == 0 {
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.askToAddUserId", "TgUserID=="+strconv.FormatInt(tgUserID, 10)))
+		t.showRegistrationPrompt(chatId, tgUserID)
 		return
 	}
 

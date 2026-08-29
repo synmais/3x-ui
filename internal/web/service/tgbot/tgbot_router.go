@@ -1098,6 +1098,31 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.getBanLogs"))
 		t.sendBanLogs(chatId, true)
 
+	case "register_user":
+		tgUserID := callbackQuery.From.ID
+
+		traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
+		if err != nil {
+			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation"))
+			return
+		}
+
+		if len(traffics) > 0 {
+			t.getClientUsage(chatId, tgUserID, traffics[0].Email)
+			return
+		}
+
+		t.startRegistration(chatId, callbackQuery.From)
+
+	case "register_cancel":
+		registrationMgr.clear(chatId)
+		t.SendMsgToTgbotDeleteAfter(
+			chatId,
+			t.I18nBot("tgbot.messages.cancel"),
+			3,
+			tu.ReplyKeyboardRemove(),
+		)
+
 	case "client_traffic":
 		tgUserID := callbackQuery.From.ID
 		traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
@@ -1107,7 +1132,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		}
 
 		if len(traffics) == 0 {
-			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.askToAddUserId", "TgUserID=="+strconv.FormatInt(tgUserID, 10)))
+			t.showRegistrationPrompt(chatId, tgUserID)
 			return
 		}
 
@@ -1148,7 +1173,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			return
 		}
 		if len(traffics) == 0 {
-			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.askToAddUserId", "TgUserID=="+strconv.FormatInt(tgUserID, 10)))
+			t.showRegistrationPrompt(chatId, tgUserID)
 			return
 		}
 		var buttons []telego.InlineKeyboardButton
@@ -1170,7 +1195,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			return
 		}
 		if len(traffics) == 0 {
-			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.askToAddUserId", "TgUserID=="+strconv.FormatInt(tgUserID, 10)))
+			t.showRegistrationPrompt(chatId, tgUserID)
 			return
 		}
 		var buttons2 []telego.InlineKeyboardButton
@@ -1192,7 +1217,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			return
 		}
 		if len(traffics) == 0 {
-			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.askToAddUserId", "TgUserID=="+strconv.FormatInt(tgUserID, 10)))
+			t.showRegistrationPrompt(chatId, tgUserID)
 			return
 		}
 		var buttons3 []telego.InlineKeyboardButton
@@ -1489,6 +1514,12 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		}
 	default:
 
+		if strings.HasPrefix(callbackQuery.Data, "register_tariff_") {
+			tariffID := strings.TrimPrefix(callbackQuery.Data, "register_tariff_")
+			t.registrationTariff(chatId, tariffID)
+			return
+		}
+
 		if after, ok := strings.CutPrefix(callbackQuery.Data, "client_traffic "); ok {
 			email := after
 			t.getClientUsage(chatId, callbackQuery.From.ID, email)
@@ -1523,8 +1554,13 @@ func checkAdmin(tgId int64) bool {
 // safe to run for a non-admin. Every other callback is admin-only (default-deny).
 func isClientSelfCallback(data string) bool {
 	switch data {
+	case "register_user", "register_cancel":
+		return true
 	case "client_traffic", "client_commands", "client_sub_links",
 		"client_individual_links", "client_qr_links":
+		return true
+	}
+	if strings.HasPrefix(data, "register_tariff_") {
 		return true
 	}
 	return strings.HasPrefix(data, "client_traffic ") ||

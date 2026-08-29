@@ -2228,6 +2228,7 @@
       "enableSuccess": "✅ {{ .Email }}: Включено успешно.",
       "disableSuccess": "✅ {{ .Email }}: Отключено успешно.",
       "askToAddUserId": "❌ Ваша конфигурация не найдена!\r\n💭 Пожалуйста, попросите администратора использовать ваш Telegram User ID в конфигурации.\r\n\r\n🆔 Ваш User ID: <code>{{ .TgUserID }}</code>",
+      "userNotRegistered": "❌ Ваша конфигурация не найдена!\r\n",
       "chooseClient": "Выберите клиента для входящего подключения {{ .Inbound }}",
       "chooseInbound": "Выберите входящее подключение"
     }
