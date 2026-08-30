@@ -23,6 +23,8 @@ type registrationStore struct {
 	items map[int64]registrationState
 }
 
+const registrationTTL = time.Hour
+
 var registrationMgr = &registrationStore{
 	items: make(map[int64]registrationState),
 }
@@ -38,7 +40,16 @@ func (s *registrationStore) get(chatID int64) (registrationState, bool) {
 	defer s.mu.Unlock()
 
 	state, ok := s.items[chatID]
-	return state, ok
+	if !ok {
+		return registrationState{}, false
+	}
+
+	if time.Since(state.UpdatedAt) > registrationTTL {
+		delete(s.items, chatID)
+		return registrationState{}, false
+	}
+
+	return state, true
 }
 
 func (s *registrationStore) clear(chatID int64) {
@@ -104,10 +115,16 @@ func telegramUserComment(user telego.User) string {
 	return fmt.Sprintf("Telegram user %d", user.ID)
 }
 
-func (t *Tgbot) registrationTariff(chatID int64, tariffID string) {
+func (t *Tgbot) registrationTariff(chatID int64, tgUserID int64, tariffID string) {
 	state, ok := registrationMgr.get(chatID)
+
 	if !ok {
 		t.SendMsgToTgbot(chatID, "Регистрация не найдена. Начните её заново.")
+		return
+	}
+
+	if state.TgID != tgUserID {
+		t.SendMsgToTgbot(chatID, "Регистрация принадлежит другому пользователю.")
 		return
 	}
 

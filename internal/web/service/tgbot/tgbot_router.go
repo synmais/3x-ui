@@ -1132,7 +1132,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		}
 
 		if len(traffics) == 0 {
-			t.showRegistrationPrompt(chatId, tgUserID)
+			t.showRegistrationPrompt(chatId)
 			return
 		}
 
@@ -1173,7 +1173,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			return
 		}
 		if len(traffics) == 0 {
-			t.showRegistrationPrompt(chatId, tgUserID)
+			t.showRegistrationPrompt(chatId)
 			return
 		}
 		var buttons []telego.InlineKeyboardButton
@@ -1195,7 +1195,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			return
 		}
 		if len(traffics) == 0 {
-			t.showRegistrationPrompt(chatId, tgUserID)
+			t.showRegistrationPrompt(chatId)
 			return
 		}
 		var buttons2 []telego.InlineKeyboardButton
@@ -1217,7 +1217,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			return
 		}
 		if len(traffics) == 0 {
-			t.showRegistrationPrompt(chatId, tgUserID)
+			t.showRegistrationPrompt(chatId)
 			return
 		}
 		var buttons3 []telego.InlineKeyboardButton
@@ -1516,7 +1516,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 
 		if strings.HasPrefix(callbackQuery.Data, "register_tariff_") {
 			tariffID := strings.TrimPrefix(callbackQuery.Data, "register_tariff_")
-			t.registrationTariff(chatId, tariffID)
+			t.registrationTariff(chatId, callbackQuery.From.ID, tariffID)
 			return
 		}
 

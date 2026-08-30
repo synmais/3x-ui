@@ -553,10 +553,10 @@ func (t *Tgbot) clientInfoMsg(
 }
 
 // showRegistrationPrompt... *some comment*
-func (t *Tgbot) showRegistrationPrompt(chatId int64, tgUserID int64) {
+func (t *Tgbot) showRegistrationPrompt(chatId int64) {
 	inlineKeyboard := tu.InlineKeyboard(
 		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton("🆕 Зарегистрировать пользователя").
+			tu.InlineKeyboardButton("🆕 Зарегистрироваться").
 				WithCallbackData("register_user"),
 		),
 	)
@@ -579,7 +579,7 @@ func (t *Tgbot) getClientUsage(chatId int64, tgUserID int64, email ...string) {
 	}
 
 	if len(traffics) == 0 {
-		t.showRegistrationPrompt(chatId, tgUserID)
+		t.showRegistrationPrompt(chatId)
 		return
 	}
 
