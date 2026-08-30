@@ -261,6 +261,11 @@ func (t *Tgbot) answerCommand(message *telego.Message, chatId int64, isAdmin boo
 	}
 }
 
+// showMainMenu displays the main menu without the /start greeting.
+func (t *Tgbot) showMainMenu(chatId int64, isAdmin bool) {
+	t.sendResponse(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), false, isAdmin)
+}
+
 func (t *Tgbot) isCommandForCurrentBot(message *telego.Message) bool {
 	return isCommandForBot(message.Text, botUsername())
 }
@@ -1123,6 +1128,13 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			tu.ReplyKeyboardRemove(),
 		)
 
+	case "register_confirm":
+		t.sendCallbackAnswerTgBot(
+			callbackQuery.ID,
+			t.I18nBot("tgbot.answers.successfulOperation"),
+		)
+		t.confirmRegistration(chatId, callbackQuery.From.ID)
+
 	case "client_traffic":
 		tgUserID := callbackQuery.From.ID
 		traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
@@ -1520,6 +1532,19 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			return
 		}
 
+		if strings.HasPrefix(callbackQuery.Data, "register_period_") {
+			monthsStr := strings.TrimPrefix(callbackQuery.Data, "register_period_")
+
+			months, err := strconv.Atoi(monthsStr)
+			if err != nil {
+				t.SendMsgToTgbot(chatId, "Некорректный срок регистрации.")
+				return
+			}
+
+			t.registrationPeriod(chatId, callbackQuery.From.ID, months)
+			return
+		}
+
 		if after, ok := strings.CutPrefix(callbackQuery.Data, "client_traffic "); ok {
 			email := after
 			t.getClientUsage(chatId, callbackQuery.From.ID, email)
@@ -1559,8 +1584,13 @@ func isClientSelfCallback(data string) bool {
 	case "client_traffic", "client_commands", "client_sub_links",
 		"client_individual_links", "client_qr_links":
 		return true
+	case "register_confirm":
+		return true
 	}
 	if strings.HasPrefix(data, "register_tariff_") {
+		return true
+	}
+	if strings.HasPrefix(data, "register_period_") {
 		return true
 	}
 	return strings.HasPrefix(data, "client_traffic ") ||
