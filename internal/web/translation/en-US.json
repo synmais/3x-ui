@@ -1570,7 +1570,14 @@
           "httpMethodDesc": "Method used for probe requests.",
           "note": "leastPing/leastLoad balancers always carry a burst observatory. This switch customises its probe parameters — turn it off to use the built-in defaults. Changes apply after a panel restart."
         }
-      }
+      },
+      "yoomoneySettings": "YooMoney",
+      "yoomoneyWallet": "YooMoney wallet",
+      "yoomoneyWalletDesc": "YooMoney wallet number used to receive subscription payments",
+      "yoomoneyNotificationSecret": "Notification secret",
+      "yoomoneyNotificationSecretDesc": "Secret used to verify YooMoney payment notifications",
+      "yoomoneyNotificationSecretConfigured": "Notification secret is configured",
+      "yoomoneyNotificationSecretPlaceholder": "Enter notification secret"
     },
     "xray": {
       "save": "Save",

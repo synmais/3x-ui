@@ -34,6 +34,7 @@ import {
   TagsOutlined,
   TeamOutlined,
   ToolOutlined,
+  WalletOutlined,
 } from '@ant-design/icons';
 
 import { HttpUtil } from '@/utils';
@@ -271,6 +272,11 @@ export default function AppSidebar() {
         label: t('pages.settings.subBalancers.menu'),
       });
     }
+    children.push({
+      key: '/settings#yoomoney',
+      icon: <WalletOutlined />,
+      label: t('pages.settings.yoomoneySettings'),
+    })
     return children;
   }, [t, showSubFormats, showSubBalancers]);
 

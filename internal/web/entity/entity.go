@@ -49,6 +49,9 @@ type AllSetting struct {
 	TgLang          string `json:"tgLang" form:"tgLang"`
 	TgEnabledEvents string `json:"tgEnabledEvents" form:"tgEnabledEvents"`
 
+	YooMoneyWallet             string `json:"yoomoneyWallet" form:"yoomoneyWallet"`
+	YooMoneyNotificationSecret string `json:"yoomoneyNotificationSecret" form:"yoomoneyNotificationSecret"`
+
 	SmtpEnable         bool   `json:"smtpEnable" form:"smtpEnable"`
 	SmtpHost           string `json:"smtpHost" form:"smtpHost"`
 	SmtpPort           int    `json:"smtpPort" form:"smtpPort" validate:"gte=1,lte=65535"`
@@ -137,13 +140,14 @@ type AllSetting struct {
 type AllSettingView struct {
 	AllSetting
 
-	HasTgBotToken     bool `json:"hasTgBotToken"`
-	HasTwoFactorToken bool `json:"hasTwoFactorToken"`
-	HasLdapPassword   bool `json:"hasLdapPassword"`
-	HasApiToken       bool `json:"hasApiToken"`
-	HasWarpSecret     bool `json:"hasWarpSecret"`
-	HasNordSecret     bool `json:"hasNordSecret"`
-	HasSmtpPassword   bool `json:"hasSmtpPassword"`
+	HasTgBotToken                 bool `json:"hasTgBotToken"`
+	HasTwoFactorToken             bool `json:"hasTwoFactorToken"`
+	HasLdapPassword               bool `json:"hasLdapPassword"`
+	HasApiToken                   bool `json:"hasApiToken"`
+	HasWarpSecret                 bool `json:"hasWarpSecret"`
+	HasNordSecret                 bool `json:"hasNordSecret"`
+	HasSmtpPassword               bool `json:"hasSmtpPassword"`
+	HasYooMoneyNotificationSecret bool `json:"hasYooMoneyNotificationSecret"`
 }
 
 func pathHasForbiddenChar(s string) bool {

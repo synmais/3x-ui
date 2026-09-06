@@ -81,6 +81,8 @@ var defaultValueMap = map[string]string{
 	"tgCpu":                       "80",
 	"tgMemory":                    "80",
 	"tgLang":                      "en-US",
+	"yoomoneyWallet":              "",
+	"yoomoneyNotificationSecret":  "",
 	"twoFactorEnable":             "false",
 	"twoFactorToken":              "",
 	"subEnable":                   "true",
@@ -276,6 +278,7 @@ func (s *SettingService) GetAllSettingView() (*entity.AllSettingView, error) {
 	view.HasWarpSecret = secretConfigured(mustString(s.GetWarp()))
 	view.HasNordSecret = secretConfigured(mustString(s.GetNord()))
 	view.HasSmtpPassword = secretConfigured(allSetting.SmtpPassword)
+	view.HasYooMoneyNotificationSecret = secretConfigured(allSetting.YooMoneyNotificationSecret)
 	var apiTokenCount int64
 	if err := database.GetDB().Model(model.ApiToken{}).Where("enabled = ?", true).Count(&apiTokenCount).Error; err == nil {
 		view.HasApiToken = apiTokenCount > 0
@@ -284,6 +287,7 @@ func (s *SettingService) GetAllSettingView() (*entity.AllSettingView, error) {
 	view.TwoFactorToken = ""
 	view.LdapPassword = ""
 	view.SmtpPassword = ""
+	view.YooMoneyNotificationSecret = ""
 	return view, nil
 }
 
@@ -1191,9 +1195,10 @@ func (s *SettingService) SetOutboundDownThreshold(value int) error {
 // flag, a blank submitted secret means "unchanged" (the field is always served
 // blank to the browser) and the stored value is preserved.
 type SecretClears struct {
-	TgBotToken   bool
-	LdapPassword bool
-	SmtpPassword bool
+	TgBotToken                 bool
+	LdapPassword               bool
+	SmtpPassword               bool
+	YooMoneyNotificationSecret bool
 }
 
 func (s *SettingService) UpdateAllSetting(allSetting *entity.AllSetting, clears SecretClears) error {
@@ -1316,6 +1321,13 @@ func (s *SettingService) preserveRedactedSecrets(allSetting *entity.AllSetting, 
 			return err
 		}
 		allSetting.SmtpPassword = value
+	}
+	if !clears.YooMoneyNotificationSecret && strings.TrimSpace(allSetting.YooMoneyNotificationSecret) == "" {
+		value, err := s.GetYooMoneyNotificationSecret()
+		if err != nil {
+			return err
+		}
+		allSetting.YooMoneyNotificationSecret = value
 	}
 	return nil
 }
@@ -1526,4 +1538,21 @@ func (s *SettingService) GetFactoryDefaults() map[string]string {
 		}
 	}
 	return result
+}
+
+// Yoomoney
+func (s *SettingService) GetYooMoneyWallet() (string, error) {
+	return s.getString("yoomoneyWallet")
+}
+
+func (s *SettingService) SetYooMoneyWallet(value string) error {
+	return s.setString("yoomoneyWallet", value)
+}
+
+func (s *SettingService) GetYooMoneyNotificationSecret() (string, error) {
+	return s.getString("yoomoneyNotificationSecret")
+}
+
+func (s *SettingService) SetYooMoneyNotificationSecret(value string) error {
+	return s.setString("yoomoneyNotificationSecret", value)
 }

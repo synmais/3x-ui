@@ -32,6 +32,8 @@ export const AllSettingSchema = z
     tgCpu: z.number().int().min(0).max(100).optional(),
     outboundDownThreshold: z.number().int().min(1).max(100).optional(),
     tgLang: z.string().optional(),
+    yoomoneyWallet: z.string().optional(),
+    yoomoneyNotificationSecret: z.string().optional(),
     twoFactorEnable: z.boolean().optional(),
     twoFactorToken: z.string().optional(),
     xrayTemplateConfig: z.string().optional(),
@@ -103,6 +105,7 @@ export const AllSettingSchema = z
     hasWarpSecret: z.boolean().optional(),
     hasNordSecret: z.boolean().optional(),
     hasSmtpPassword: z.boolean().optional(),
+    hasYooMoneyNotificationSecret: z.boolean().optional(),
   })
   .loose();
 
