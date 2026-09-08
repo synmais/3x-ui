@@ -1,12 +1,8 @@
 package yoomoney
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -33,17 +29,17 @@ func ParseYooMoneyNotification(
 		return nil, fmt.Errorf("YooMoney notification secret is empty")
 	}
 
-	sign := values.Get("sha256_hash")
-	if sign == "" {
-		sign = values.Get("sign")
-	}
-
+	sign := values.Get("sign")
 	if sign == "" {
 		return nil, fmt.Errorf("missing YooMoney notification signature")
 	}
 
-	if !verifyYooMoneySignature(values, sign, secret) {
+	if !VerifyNotification(values, secret) {
 		return nil, fmt.Errorf("invalid YooMoney notification signature")
+	}
+
+	if sign == "" {
+		return nil, fmt.Errorf("missing YooMoney notification signature")
 	}
 
 	notificationType := values.Get("notification_type")
@@ -75,38 +71,6 @@ func ParseYooMoneyNotification(
 		Unaccepted:       values.Get("unaccepted"),
 		Sign:             sign,
 	}, nil
-}
-
-// verifyYooMoneySignature verifies the current YooMoney HTTP notification
-// signature. The sign field itself is excluded. Remaining parameters are sorted
-// alphabetically and encoded as key=value pairs using RFC 3986 escaping.
-func verifyYooMoneySignature(values url.Values, expected, secret string) bool {
-	keys := make([]string, 0, len(values))
-
-	for key := range values {
-		if key == "sign" || key == "sha256_hash" {
-			continue
-		}
-		keys = append(keys, key)
-	}
-
-	sort.Strings(keys)
-
-	var parts []string
-	for _, key := range keys {
-		for _, value := range values[key] {
-			parts = append(parts, url.QueryEscape(key)+"="+url.QueryEscape(value))
-		}
-	}
-
-	payload := strings.Join(parts, "&")
-
-	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write([]byte(payload))
-
-	actual := hex.EncodeToString(mac.Sum(nil))
-
-	return hmac.Equal([]byte(actual), []byte(strings.ToLower(expected)))
 }
 
 func parseYooMoneyAmount(value string) (int64, error) {

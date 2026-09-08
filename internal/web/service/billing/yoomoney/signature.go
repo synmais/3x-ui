@@ -9,12 +9,7 @@ import (
 	"strings"
 )
 
-func VerifyNotification(values url.Values, secret string) bool {
-	sign := values.Get("sign")
-	if sign == "" || secret == "" {
-		return false
-	}
-
+func notificationPayload(values url.Values) string {
 	data := make([]string, 0, len(values))
 
 	for key, vals := range values {
@@ -29,7 +24,16 @@ func VerifyNotification(values url.Values, secret string) bool {
 
 	sort.Strings(data)
 
-	payload := strings.Join(data, "&")
+	return strings.Join(data, "&")
+}
+
+func VerifyNotification(values url.Values, secret string) bool {
+	sign := values.Get("sign")
+	if sign == "" || secret == "" {
+		return false
+	}
+
+	payload := notificationPayload(values)
 
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write([]byte(payload))
@@ -38,7 +42,7 @@ func VerifyNotification(values url.Values, secret string) bool {
 
 	return hmac.Equal(
 		[]byte(strings.ToLower(sign)),
-		[]byte(strings.ToLower(expected)),
+		[]byte(expected),
 	)
 }
 
@@ -47,7 +51,5 @@ func rfc3986Encode(value string) string {
 
 	// QueryEscape uses '+' for spaces.
 	// RFC 3986 requires %20.
-	encoded = strings.ReplaceAll(encoded, "+", "%20")
-
-	return encoded
+	return strings.ReplaceAll(encoded, "+", "%20")
 }
