@@ -40,8 +40,14 @@ func (s *BillingService) CreatePayment(
 		return nil, fmt.Errorf("payment provider is required")
 	}
 
+	label, err := randomLowerAndNum(16)
+	if err != nil {
+		return nil, err
+	}
+
 	payment := &model.Payment{
 		ID:        uuid.NewString(),
+		Label:     label,
 		TgID:      tgID,
 		TariffID:  tariffID,
 		Months:    months,
@@ -98,7 +104,7 @@ func YooMoneyPaymentURL(wallet string, payment *model.Payment, successURL string
 	values.Set("targets", "synVPN subscription")
 	values.Set("paymentType", "AC")
 	values.Set("sum", formatRUB(payment.Amount))
-	values.Set("label", YooMoneyLabel(payment.ID))
+	values.Set("label", payment.Label)
 
 	if successURL != "" {
 		values.Set("successURL", successURL)

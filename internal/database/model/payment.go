@@ -15,6 +15,8 @@ const (
 type Payment struct {
 	ID string `gorm:"primaryKey"`
 
+	Label string `gorm:"uniqueIndex;not null"`
+
 	TgID int64 `gorm:"index;not null"`
 
 	TariffID string `gorm:"index;not null"`
