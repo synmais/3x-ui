@@ -7,8 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
+	billingservice "github.com/mhsanaei/3x-ui/v3/internal/web/service/billing"
 
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
@@ -335,61 +334,76 @@ func (t *Tgbot) confirmRegistration(chatID int64, tgUserID int64) {
 		return
 	}
 
-	// Генерируем идентификаторы непосредственно перед созданием клиента.
-	clientEmail := t.randomLowerAndNum(8)
-	clientSubID := t.randomLowerAndNum(16)
+	price := tariff.Price(period)
 
-	// Срок подписки в миллисекундах, как используется 3x-ui.
-	expiryTime := time.Now().AddDate(0, period.Months, 0).UnixMilli()
-
-	client := model.Client{
-		Email:      clientEmail,
-		Enable:     true,
-		LimitIP:    0,
-		TotalGB:    tariff.TotalGB * 1024 * 1024 * 1024,
-		ExpiryTime: expiryTime,
-		SubID:      clientSubID,
-		Comment:    state.Comment,
-		Reset:      0,
-		TgID:       state.TgID,
-	}
-
-	_, err := t.clientService.Create(
-		&t.inboundService,
-		&service.ClientCreatePayload{
-			Client:     client,
-			InboundIds: []int{tariff.InboundID},
-			LimitHwid:  tariff.LimitHWID,
-		},
+	billing := billingservice.BillingService{}
+	payment, err := billing.CreatePayment(
+		state.TgID,
+		state.Comment,
+		tariff.ID,
+		period.Months,
+		price*100,
+		"yoomoney",
+		time.Now().Add(30*time.Minute),
 	)
 	if err != nil {
 		t.SendMsgToTgbot(
 			chatID,
-			fmt.Sprintf("❌ Не удалось создать подписку: %v", err),
+			fmt.Sprintf("❌ Не удалось создать платёж: %v", err),
+		)
+		return
+	}
+
+	wallet, err := t.settingService.GetYooMoneyWallet()
+	if err != nil || wallet == "" {
+		t.SendMsgToTgbot(
+			chatID,
+			"❌ Оплата сейчас недоступна. Попробуйте позже.",
+		)
+		return
+	}
+
+	paymentURL, err := billingservice.YooMoneyPaymentURL(
+		wallet,
+		payment,
+		"",
+	)
+	if err != nil {
+		t.SendMsgToTgbot(
+			chatID,
+			fmt.Sprintf("❌ Не удалось сформировать ссылку на оплату: %v", err),
 		)
 		return
 	}
 
 	registrationMgr.clear(chatID)
 
-	t.SendMsgToTgbot(
-		chatID,
-		fmt.Sprintf(
-			"✅ <b>Подписка создана!</b>\n\n"+
-				"📧 %s\n"+
-				"📊 %d ГБ\n"+
-				"📱 %d устройств\n"+
-				"📅 %d мес.\n"+
-				"💰 %d ₽\n\n"+
-				"Сейчас подготовим ссылку на подключение.",
-			html.EscapeString(clientEmail),
-			tariff.TotalGB,
-			tariff.LimitHWID,
-			period.Months,
-			tariff.Price(period),
+	inlineKeyboard := tu.InlineKeyboard(
+		tu.InlineKeyboardRow(
+			tu.InlineKeyboardButton(
+				fmt.Sprintf("💳 Оплатить %d ₽", price),
+			).WithURL(paymentURL),
+		),
+		tu.InlineKeyboardRow(
+			tu.InlineKeyboardButton("❌ Отмена").
+				WithCallbackData("register_cancel"),
 		),
 	)
 
-	t.sendClientSubLinks(chatID, clientEmail)
-	//t.showMainMenu(chatID, false)
+	t.SendMsgToTgbot(
+		chatID,
+		fmt.Sprintf(
+			"💳 <b>Оплата регистрации</b>\n\n"+
+				"📊 %d ГБ\n"+
+				"📱 %d устройств\n"+
+				"📅 %d мес.\n"+
+				"💰 <b>%d ₽</b>\n\n"+
+				"После оплаты подписка будет создана автоматически.",
+			tariff.TotalGB,
+			tariff.LimitHWID,
+			period.Months,
+			price,
+		),
+		inlineKeyboard,
+	)
 }

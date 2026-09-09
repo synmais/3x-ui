@@ -19,6 +19,8 @@ type Payment struct {
 
 	TgID int64 `gorm:"index;not null"`
 
+	Comment string `gorm:"not null;default:''"`
+
 	TariffID string `gorm:"index;not null"`
 	Months   int    `gorm:"not null"`
 

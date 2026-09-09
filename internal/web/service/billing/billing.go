@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	"github.com/mhsanaei/3x-ui/v3/internal/web/service/billing/yoomoney"
 )
 
 // BillingService contains payment business logic.
@@ -18,6 +19,7 @@ type BillingService struct{}
 // CreatePayment creates a pending payment and returns it.
 func (s *BillingService) CreatePayment(
 	tgID int64,
+	comment string,
 	tariffID string,
 	months int,
 	amountKopecks int64,
@@ -26,6 +28,9 @@ func (s *BillingService) CreatePayment(
 ) (*model.Payment, error) {
 	if tgID == 0 {
 		return nil, fmt.Errorf("telegram ID is required")
+	}
+	if comment == "" {
+		return nil, fmt.Errorf("comment is required")
 	}
 	if tariffID == "" {
 		return nil, fmt.Errorf("tariff ID is required")
@@ -49,6 +54,7 @@ func (s *BillingService) CreatePayment(
 		ID:        uuid.NewString(),
 		Label:     label,
 		TgID:      tgID,
+		Comment:   comment,
 		TariffID:  tariffID,
 		Months:    months,
 		Amount:    amountKopecks,
@@ -118,4 +124,79 @@ func formatRUB(amountKopecks int64) string {
 	kopecks := amountKopecks % 100
 
 	return strconv.FormatInt(rubles, 10) + "." + fmt.Sprintf("%02d", kopecks)
+}
+
+// ConfirmYooMoneyPayment confirms a pending YooMoney payment.
+func (s *BillingService) ConfirmYooMoneyPayment(
+	notification *yoomoney.YooMoneyNotification,
+) (*model.Payment, error) {
+	if notification == nil {
+		return nil, fmt.Errorf("YooMoney notification is nil")
+	}
+
+	if notification.Label == "" {
+		return nil, fmt.Errorf("YooMoney payment label is empty")
+	}
+
+	var payment model.Payment
+	if err := database.GetDB().
+		Where("label = ?", notification.Label).
+		First(&payment).Error; err != nil {
+		return nil, fmt.Errorf("payment not found: %w", err)
+	}
+
+	if payment.Provider != "yoomoney" {
+		return nil, fmt.Errorf("unexpected payment provider: %q", payment.Provider)
+	}
+
+	if payment.Currency != yoomoney.CurrencyName(notification.Currency) {
+		return nil, fmt.Errorf(
+			"payment currency mismatch: expected %s, got %s",
+			payment.Currency,
+			notification.Currency,
+		)
+	}
+
+	if payment.Amount != notification.Amount {
+		return nil, fmt.Errorf(
+			"payment amount mismatch: expected %d, got %d",
+			payment.Amount,
+			notification.Amount,
+		)
+	}
+
+	// YooMoney may send the same notification more than once.
+	if payment.Status == model.PaymentPaid {
+		return &payment, nil
+	}
+
+	if payment.Status != model.PaymentPending {
+		return nil, fmt.Errorf(
+			"payment has unexpected status: %s",
+			payment.Status,
+		)
+	}
+
+	if !payment.ExpiresAt.IsZero() && time.Now().After(payment.ExpiresAt) {
+		payment.Status = model.PaymentExpired
+
+		if err := database.GetDB().Save(&payment).Error; err != nil {
+			return nil, err
+		}
+
+		return nil, fmt.Errorf("payment has expired")
+	}
+
+	operationID := notification.OperationID
+	now := time.Now()
+
+	payment.Status = model.PaymentPaid
+	payment.ProviderOperationID = &operationID
+	payment.PaidAt = &now
+
+	if err := database.GetDB().Save(&payment).Error; err != nil {
+		return nil, err
+	}
+
+	return &payment, nil
 }

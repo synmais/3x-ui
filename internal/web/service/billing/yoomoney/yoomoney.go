@@ -113,3 +113,12 @@ func parseYooMoneyAmount(value string) (int64, error) {
 
 	return rubles*100 + kopecks, nil
 }
+
+func CurrencyName(currency string) string {
+	switch currency {
+	case "643":
+		return "RUB"
+	default:
+		return currency
+	}
+}

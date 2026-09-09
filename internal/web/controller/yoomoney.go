@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
+	"github.com/mhsanaei/3x-ui/v3/internal/web/service/billing"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service/billing/yoomoney"
 )
 
@@ -41,7 +42,17 @@ func (a *YooMoneyController) notification(c *gin.Context) {
 		return
 	}
 
-	if _, err := yoomoney.ParseYooMoneyNotification(c.Request.PostForm, secret); err != nil {
+	notification, err := yoomoney.ParseYooMoneyNotification(
+		c.Request.PostForm,
+		secret,
+	)
+	if err != nil {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+
+	billingService := &billing.BillingService{}
+	if _, err := billingService.ConfirmYooMoneyPayment(notification); err != nil {
 		c.Status(http.StatusBadRequest)
 		return
 	}
