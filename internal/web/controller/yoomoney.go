@@ -4,23 +4,31 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service/billing"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service/billing/yoomoney"
 )
 
+type paymentProcessor interface {
+	ProcessYooMoneyPayment(payment *model.Payment) error
+}
+
 type YooMoneyController struct {
-	settingService service.SettingService
-	getSecret      func() (string, error)
+	settingService   service.SettingService
+	paymentProcessor paymentProcessor
+	getSecret        func() (string, error)
 }
 
 func NewYooMoneyController(
 	g *gin.RouterGroup,
 	settingService service.SettingService,
+	paymentProcessor paymentProcessor,
 ) *YooMoneyController {
 	a := &YooMoneyController{
-		settingService: settingService,
-		getSecret:      settingService.GetYooMoneyNotificationSecret,
+		settingService:   settingService,
+		paymentProcessor: paymentProcessor,
+		getSecret:        settingService.GetYooMoneyNotificationSecret,
 	}
 	a.initRouter(g)
 	return a
@@ -52,8 +60,19 @@ func (a *YooMoneyController) notification(c *gin.Context) {
 	}
 
 	billingService := &billing.BillingService{}
-	if _, err := billingService.ConfirmYooMoneyPayment(notification); err != nil {
+	payment, err := billingService.ConfirmYooMoneyPayment(notification)
+	if err != nil {
 		c.Status(http.StatusBadRequest)
+		return
+	}
+
+	if payment.Status == model.PaymentPaid {
+		c.Status(http.StatusOK)
+		return
+	}
+
+	if err := a.paymentProcessor.ProcessYooMoneyPayment(payment); err != nil {
+		c.Status(http.StatusInternalServerError)
 		return
 	}
 

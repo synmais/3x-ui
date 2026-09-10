@@ -19,6 +19,7 @@ type BillingService struct{}
 // CreatePayment creates a pending payment and returns it.
 func (s *BillingService) CreatePayment(
 	tgID int64,
+	clientEmail string,
 	comment string,
 	tariffID string,
 	months int,
@@ -28,6 +29,9 @@ func (s *BillingService) CreatePayment(
 ) (*model.Payment, error) {
 	if tgID == 0 {
 		return nil, fmt.Errorf("telegram ID is required")
+	}
+	if clientEmail == "" {
+		return nil, fmt.Errorf("client email is required")
 	}
 	if comment == "" {
 		return nil, fmt.Errorf("comment is required")
@@ -51,17 +55,18 @@ func (s *BillingService) CreatePayment(
 	}
 
 	payment := &model.Payment{
-		ID:        uuid.NewString(),
-		Label:     label,
-		TgID:      tgID,
-		Comment:   comment,
-		TariffID:  tariffID,
-		Months:    months,
-		Amount:    amountKopecks,
-		Currency:  "RUB",
-		Status:    model.PaymentPending,
-		Provider:  provider,
-		ExpiresAt: expiresAt,
+		ID:          uuid.NewString(),
+		Label:       label,
+		ClientEmail: clientEmail,
+		TgID:        tgID,
+		Comment:     comment,
+		TariffID:    tariffID,
+		Months:      months,
+		Amount:      amountKopecks,
+		Currency:    "RUB",
+		Status:      model.PaymentPending,
+		Provider:    provider,
+		ExpiresAt:   expiresAt,
 	}
 
 	if err := database.GetDB().Create(payment).Error; err != nil {
@@ -170,6 +175,10 @@ func (s *BillingService) ConfirmYooMoneyPayment(
 		return &payment, nil
 	}
 
+	if payment.Status == model.PaymentProcessing {
+		return &payment, nil
+	}
+
 	if payment.Status != model.PaymentPending {
 		return nil, fmt.Errorf(
 			"payment has unexpected status: %s",
@@ -188,13 +197,107 @@ func (s *BillingService) ConfirmYooMoneyPayment(
 	}
 
 	operationID := notification.OperationID
+
+	result := database.GetDB().
+		Model(&model.Payment{}).
+		Where("id = ? AND status = ?", payment.ID, model.PaymentPending).
+		Updates(map[string]interface{}{
+			"status":                model.PaymentProcessing,
+			"provider_operation_id": operationID,
+		})
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		var current model.Payment
+		if err := database.GetDB().
+			Where("id = ?", payment.ID).
+			First(&current).Error; err != nil {
+			return nil, err
+		}
+
+		if current.Status == model.PaymentPaid ||
+			current.Status == model.PaymentProcessing {
+			return &current, nil
+		}
+
+		return nil, fmt.Errorf(
+			"payment has unexpected status: %s",
+			current.Status,
+		)
+	}
+
+	if err := database.GetDB().
+		Where("id = ?", payment.ID).
+		First(&payment).Error; err != nil {
+		return nil, err
+	}
+
+	return &payment, nil
+}
+
+func (s *BillingService) CompletePayment(
+	paymentID string,
+) (*model.Payment, error) {
+	if paymentID == "" {
+		return nil, fmt.Errorf("payment ID is required")
+	}
+
+	var payment model.Payment
+	if err := database.GetDB().
+		Where("id = ?", paymentID).
+		First(&payment).Error; err != nil {
+		return nil, fmt.Errorf("payment not found: %w", err)
+	}
+
+	if payment.Status == model.PaymentPaid {
+		return &payment, nil
+	}
+
+	if payment.Status != model.PaymentProcessing {
+		return nil, fmt.Errorf(
+			"payment has unexpected status: %s",
+			payment.Status,
+		)
+	}
+
 	now := time.Now()
 
-	payment.Status = model.PaymentPaid
-	payment.ProviderOperationID = &operationID
-	payment.PaidAt = &now
+	result := database.GetDB().
+		Model(&model.Payment{}).
+		Where("id = ? AND status = ?", paymentID, model.PaymentProcessing).
+		Updates(map[string]interface{}{
+			"status":  model.PaymentPaid,
+			"paid_at": now,
+		})
 
-	if err := database.GetDB().Save(&payment).Error; err != nil {
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		var current model.Payment
+		if err := database.GetDB().
+			Where("id = ?", paymentID).
+			First(&current).Error; err != nil {
+			return nil, err
+		}
+
+		if current.Status == model.PaymentPaid {
+			return &current, nil
+		}
+
+		return nil, fmt.Errorf(
+			"payment has unexpected status: %s",
+			current.Status,
+		)
+	}
+
+	if err := database.GetDB().
+		Where("id = ?", paymentID).
+		First(&payment).Error; err != nil {
 		return nil, err
 	}
 

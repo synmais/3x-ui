@@ -335,10 +335,12 @@ func (t *Tgbot) confirmRegistration(chatID int64, tgUserID int64) {
 	}
 
 	price := tariff.Price(period)
+	clientEmail := t.randomLowerAndNum(8)
 
 	billing := billingservice.BillingService{}
 	payment, err := billing.CreatePayment(
 		state.TgID,
+		clientEmail,
 		state.Comment,
 		tariff.ID,
 		period.Months,

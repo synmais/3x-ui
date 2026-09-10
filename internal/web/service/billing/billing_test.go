@@ -28,17 +28,18 @@ func createTestPayment(t *testing.T, status model.PaymentStatus) *model.Payment 
 	t.Helper()
 
 	payment := &model.Payment{
-		ID:        "payment-test",
-		Label:     "testlabel123456",
-		TgID:      123456789,
-		Comment:   "test user",
-		TariffID:  "50gb",
-		Months:    1,
-		Amount:    5000,
-		Currency:  "RUB",
-		Status:    status,
-		Provider:  "yoomoney",
-		ExpiresAt: time.Now().Add(time.Hour),
+		ID:          "payment-test",
+		Label:       "testlabel123456",
+		ClientEmail: "client@example",
+		TgID:        123456789,
+		Comment:     "test user",
+		TariffID:    "50gb",
+		Months:      1,
+		Amount:      5000,
+		Currency:    "RUB",
+		Status:      status,
+		Provider:    "yoomoney",
+		ExpiresAt:   time.Now().Add(time.Hour),
 	}
 
 	if err := database.GetDB().Create(payment).Error; err != nil {
@@ -65,9 +66,8 @@ func TestConfirmYooMoneyPayment(t *testing.T) {
 		t.Fatalf("ConfirmYooMoneyPayment() error = %v", err)
 	}
 
-	if payment.Status != model.PaymentPaid {
-		t.Fatalf("payment status = %q, want %q",
-			payment.Status, model.PaymentPaid)
+	if payment.Status != model.PaymentProcessing {
+		t.Fatalf("payment status = %q, want %q", payment.Status, model.PaymentProcessing)
 	}
 
 	if payment.ProviderOperationID == nil ||
@@ -76,9 +76,9 @@ func TestConfirmYooMoneyPayment(t *testing.T) {
 			payment.ProviderOperationID)
 	}
 
-	if payment.PaidAt == nil {
-		t.Fatal("PaidAt is nil")
-	}
+	//if payment.PaidAt == nil {
+	//	t.Fatal("PaidAt is nil")
+	//}
 }
 
 func TestConfirmYooMoneyPaymentRejectsAmountMismatch(t *testing.T) {
@@ -182,5 +182,118 @@ func TestConfirmYooMoneyPaymentExpiresPayment(t *testing.T) {
 	if stored.Status != model.PaymentExpired {
 		t.Fatalf("payment status = %q, want %q",
 			stored.Status, model.PaymentExpired)
+	}
+}
+
+func TestConfirmYooMoneyPaymentProcessingIsIdempotent(t *testing.T) {
+	setupBillingTestDB(t)
+
+	createTestPayment(t, model.PaymentPending)
+
+	notification := &yoomoney.YooMoneyNotification{
+		OperationID: "operation-processing",
+		Amount:      5000,
+		Currency:    "RUB",
+		Label:       "testlabel123456",
+	}
+
+	service := &BillingService{}
+
+	first, err := service.ConfirmYooMoneyPayment(notification)
+	if err != nil {
+		t.Fatalf("first ConfirmYooMoneyPayment() error = %v", err)
+	}
+
+	if first.Status != model.PaymentProcessing {
+		t.Fatalf("first payment status = %q, want %q",
+			first.Status, model.PaymentProcessing)
+	}
+
+	second, err := service.ConfirmYooMoneyPayment(notification)
+	if err != nil {
+		t.Fatalf("second ConfirmYooMoneyPayment() error = %v", err)
+	}
+
+	if second.Status != model.PaymentProcessing {
+		t.Fatalf("second payment status = %q, want %q",
+			second.Status, model.PaymentProcessing)
+	}
+
+	if second.ProviderOperationID == nil ||
+		*second.ProviderOperationID != "operation-processing" {
+		t.Fatalf("operation ID = %v, want operation-processing",
+			second.ProviderOperationID)
+	}
+}
+
+func TestCompletePayment(t *testing.T) {
+	setupBillingTestDB(t)
+
+	payment := createTestPayment(t, model.PaymentProcessing)
+
+	completed, err := (&BillingService{}).CompletePayment(payment.ID)
+	if err != nil {
+		t.Fatalf("CompletePayment() error = %v", err)
+	}
+
+	if completed.Status != model.PaymentPaid {
+		t.Fatalf("payment status = %q, want %q",
+			completed.Status, model.PaymentPaid)
+	}
+
+	if completed.ClientEmail != "client@example" {
+		t.Fatalf("client email = %q, want client@example",
+			completed.ClientEmail)
+	}
+
+	if completed.PaidAt == nil {
+		t.Fatal("PaidAt is nil")
+	}
+}
+
+func TestCompletePaymentIsIdempotent(t *testing.T) {
+	setupBillingTestDB(t)
+
+	payment := createTestPayment(t, model.PaymentPaid)
+
+	clientEmail := "existing-client"
+	payment.ClientEmail = clientEmail
+
+	paidAt := time.Now().Add(-time.Minute)
+	payment.PaidAt = &paidAt
+
+	if err := database.GetDB().Save(payment).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	completed, err := (&BillingService{}).CompletePayment(payment.ID)
+
+	if err != nil {
+		t.Fatalf("CompletePayment() error = %v", err)
+	}
+
+	if completed.Status != model.PaymentPaid {
+		t.Fatalf("payment status = %q, want %q",
+			completed.Status, model.PaymentPaid)
+	}
+
+	if completed.ClientEmail != clientEmail {
+		t.Fatalf("client email changed from %q to %q",
+			clientEmail, completed.ClientEmail)
+	}
+
+	if completed.PaidAt == nil ||
+		!completed.PaidAt.Equal(paidAt) {
+		t.Fatal("PaidAt changed on repeated completion")
+	}
+}
+
+func TestCompletePaymentRejectsPendingPayment(t *testing.T) {
+	setupBillingTestDB(t)
+
+	payment := createTestPayment(t, model.PaymentPending)
+
+	if _, err := (&BillingService{}).CompletePayment(payment.ID); err == nil {
+		t.Fatal("expected error for pending payment")
 	}
 }

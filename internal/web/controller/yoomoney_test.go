@@ -17,7 +17,25 @@ import (
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+
+	billingservice "github.com/mhsanaei/3x-ui/v3/internal/web/service/billing"
 )
+
+type testPaymentProcessor struct {
+	err error
+}
+
+func (p *testPaymentProcessor) ProcessYooMoneyPayment(
+	payment *model.Payment,
+) error {
+	if p.err != nil {
+		return p.err
+	}
+
+	billing := billingservice.BillingService{}
+	_, err := billing.CompletePayment(payment.ID)
+	return err
+}
 
 func signYooMoneyNotification(values url.Values, secret string) string {
 	var parts []string
@@ -128,6 +146,7 @@ func TestYooMoneyNotification(t *testing.T) {
 				getSecret: func() (string, error) {
 					return secret, nil
 				},
+				paymentProcessor: &testPaymentProcessor{},
 			}
 
 			controller.initRouter(router.Group(""))
@@ -222,6 +241,7 @@ func TestYooMoneyNotificationDuplicate(t *testing.T) {
 		getSecret: func() (string, error) {
 			return secret, nil
 		},
+		paymentProcessor: &testPaymentProcessor{},
 	}
 
 	controller.initRouter(router.Group(""))
