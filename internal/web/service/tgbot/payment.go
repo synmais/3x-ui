@@ -16,14 +16,12 @@ func (t *Tgbot) CreateClientFromPayment(payment *model.Payment) error {
 	if payment == nil {
 		return fmt.Errorf("payment is nil")
 	}
-
 	if payment.ClientEmail == "" {
 		return fmt.Errorf("payment %s has empty client email", payment.ID)
 	}
 
 	var tariff Tariff
 	found := false
-
 	for _, candidate := range tariffs {
 		if candidate.ID == payment.TariffID {
 			tariff = candidate
@@ -31,19 +29,37 @@ func (t *Tgbot) CreateClientFromPayment(payment *model.Payment) error {
 			break
 		}
 	}
-
 	if !found {
 		return fmt.Errorf("tariff not found: %s", payment.TariffID)
 	}
 
-	// YooMoney может прислать повторное уведомление после того,
-	// как клиент уже был создан, но Payment ещё не успел перейти в Paid.
-	if _, err := t.clientService.GetRecordByEmail(nil, payment.ClientEmail); err != nil {
+	clientSubID := t.randomLowerAndNum(16)
+
+	record, err := t.clientService.GetRecordByEmail(nil, payment.ClientEmail)
+	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
 	} else {
-		return nil
+		inboundIDs, err := t.clientService.GetInboundIdsForRecord(record.Id)
+		if err != nil {
+			return err
+		}
+
+		for _, inboundID := range inboundIDs {
+			if inboundID == tariff.InboundID {
+				return nil
+			}
+		}
+
+		if record.SubID == "" {
+			return fmt.Errorf(
+				"client %s has empty subId",
+				payment.ClientEmail,
+			)
+		}
+
+		clientSubID = record.SubID
 	}
 
 	client := model.Client{
@@ -52,7 +68,7 @@ func (t *Tgbot) CreateClientFromPayment(payment *model.Payment) error {
 		LimitIP:    0,
 		TotalGB:    tariff.TotalGB * 1024 * 1024 * 1024,
 		ExpiryTime: time.Now().AddDate(0, payment.Months, 0).UnixMilli(),
-		SubID:      t.randomLowerAndNum(16),
+		SubID:      clientSubID,
 		Comment:    payment.Comment,
 		Reset:      0,
 		TgID:       payment.TgID,
