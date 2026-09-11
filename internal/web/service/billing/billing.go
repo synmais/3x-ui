@@ -99,9 +99,17 @@ func PaymentIDFromYooMoneyLabel(label string) (string, error) {
 }
 
 // YooMoneyPaymentURL builds a YooMoney payment URL.
-func YooMoneyPaymentURL(wallet string, payment *model.Payment, successURL string) (string, error) {
+func YooMoneyPaymentURL(
+	wallet string,
+	targets string,
+	payment *model.Payment,
+	successURL string,
+) (string, error) {
 	if wallet == "" {
 		return "", fmt.Errorf("YooMoney wallet is not configured")
+	}
+	if targets == "" {
+		return "", fmt.Errorf("YooMoney payment description is not configured")
 	}
 	if payment == nil {
 		return "", fmt.Errorf("payment is nil")
@@ -113,7 +121,7 @@ func YooMoneyPaymentURL(wallet string, payment *model.Payment, successURL string
 	values := url.Values{}
 	values.Set("receiver", wallet)
 	values.Set("quickpay-form", "shop")
-	values.Set("targets", "synVPN subscription")
+	values.Set("targets", targets)
 	values.Set("paymentType", "AC")
 	values.Set("sum", formatRUB(payment.Amount))
 	values.Set("label", payment.Label)

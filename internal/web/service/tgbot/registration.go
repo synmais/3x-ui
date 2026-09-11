@@ -334,6 +334,24 @@ func (t *Tgbot) confirmRegistration(chatID int64, tgUserID int64) {
 		return
 	}
 
+	wallet, err := t.settingService.GetYooMoneyWallet()
+	if err != nil || wallet == "" {
+		t.SendMsgToTgbot(
+			chatID,
+			"❌ Оплата сейчас недоступна. Попробуйте позже.",
+		)
+		return
+	}
+
+	targets, err := t.settingService.GetYooMoneyTargets()
+	if err != nil {
+		t.SendMsgToTgbot(
+			chatID,
+			"❌ Оплата сейчас недоступна. Попробуйте позже.",
+		)
+		return
+	}
+
 	price := tariff.Price(period)
 	clientEmail := t.randomLowerAndNum(8)
 
@@ -356,17 +374,9 @@ func (t *Tgbot) confirmRegistration(chatID int64, tgUserID int64) {
 		return
 	}
 
-	wallet, err := t.settingService.GetYooMoneyWallet()
-	if err != nil || wallet == "" {
-		t.SendMsgToTgbot(
-			chatID,
-			"❌ Оплата сейчас недоступна. Попробуйте позже.",
-		)
-		return
-	}
-
 	paymentURL, err := billingservice.YooMoneyPaymentURL(
 		wallet,
+		targets,
 		payment,
 		"",
 	)
