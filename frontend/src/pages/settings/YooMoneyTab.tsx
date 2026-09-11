@@ -74,17 +74,6 @@ export default function YooMoneyTab({ allSetting, updateSetting }: YooMoneyTabPr
           onClearArmedChange={(armed) => updateSetting({ clearYooMoneyNotificationSecret: armed })}
         />
       </SettingListItem>
-
-      <SettingListItem
-        paddings="small"
-        title={t('pages.settings.yoomoneyTargets')}
-        description={t('pages.settings.yoomoneyTargetsDesc')}
-      >
-        <Input
-          value={allSetting.yoomoneyTargets}
-          onChange={(e) => updateSetting({ yoomoneyTargets: e.target.value })}
-        />
-      </SettingListItem>
     </>
   );
 }

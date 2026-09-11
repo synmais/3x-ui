@@ -85,7 +85,6 @@ var defaultValueMap = map[string]string{
 	"yoomoneyClientID":            "",
 	"yoomoneyClientSecret":        "",
 	"yoomoneyNotificationSecret":  "",
-	"yoomoneyTargets":             "",
 	"twoFactorEnable":             "false",
 	"twoFactorToken":              "",
 	"subEnable":                   "true",
@@ -1585,12 +1584,4 @@ func (s *SettingService) GetYooMoneyNotificationSecret() (string, error) {
 
 func (s *SettingService) SetYooMoneyNotificationSecret(value string) error {
 	return s.setString("yoomoneyNotificationSecret", value)
-}
-
-func (s *SettingService) GetYooMoneyTargets() (string, error) {
-	return s.getString("yoomoneyTargets")
-}
-
-func (s *SettingService) SetYooMoneyTargets(value string) error {
-	return s.setString("yoomoneyTargets", value)
 }

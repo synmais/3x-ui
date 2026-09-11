@@ -307,13 +307,11 @@ func TestYooMoneyPaymentURL(t *testing.T) {
 
 	const (
 		wallet     = "4100111122233344"
-		targets    = "Подписка SynVPN"
 		successURL = "https://example.com/success"
 	)
 
 	paymentURL, err := YooMoneyPaymentURL(
 		wallet,
-		targets,
 		payment,
 		successURL,
 	)
@@ -334,20 +332,23 @@ func TestYooMoneyPaymentURL(t *testing.T) {
 		t.Fatalf("URL host = %q, want yoomoney.ru", parsedURL.Host)
 	}
 
-	if parsedURL.Path != "/quickpay/confirm.xml" {
-		t.Fatalf("URL path = %q, want /quickpay/confirm.xml", parsedURL.Path)
+	if parsedURL.Path != "/quickpay/confirm" {
+		t.Fatalf("URL path = %q, want /quickpay/confirm", parsedURL.Path)
 	}
 
 	values := parsedURL.Query()
 
 	tests := map[string]string{
 		"receiver":      wallet,
-		"quickpay-form": "shop",
-		"targets":       targets,
+		"quickpay-form": "button",
 		"paymentType":   "AC",
 		"sum":           "100.50",
 		"label":         payment.Label,
 		"successURL":    successURL,
+	}
+
+	if got := values.Get("targets"); got != "" {
+		t.Fatalf("targets = %q, want empty", got)
 	}
 
 	for key, want := range tests {
@@ -372,25 +373,16 @@ func TestYooMoneyPaymentURLRejectsInvalidInput(t *testing.T) {
 		{
 			name:    "missing wallet",
 			wallet:  "",
-			targets: "Подписка SynVPN",
-			payment: payment,
-		},
-		{
-			name:    "missing targets",
-			wallet:  "4100111122233344",
-			targets: "",
 			payment: payment,
 		},
 		{
 			name:    "nil payment",
 			wallet:  "4100111122233344",
-			targets: "Подписка SynVPN",
 			payment: nil,
 		},
 		{
-			name:    "invalid amount",
-			wallet:  "4100111122233344",
-			targets: "Подписка SynVPN",
+			name:   "invalid amount",
+			wallet: "4100111122233344",
 			payment: &model.Payment{
 				Label:  "testlabel123456",
 				Amount: 0,
@@ -402,7 +394,6 @@ func TestYooMoneyPaymentURLRejectsInvalidInput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := YooMoneyPaymentURL(
 				tt.wallet,
-				tt.targets,
 				tt.payment,
 				"",
 			); err == nil {

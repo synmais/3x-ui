@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service/billing"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service/billing/yoomoney"
@@ -43,6 +44,17 @@ func (a *YooMoneyController) notification(c *gin.Context) {
 		c.Status(http.StatusBadRequest)
 		return
 	}
+
+	logger.Infof(
+		"YooMoney notification received: type=%q operation_id=%q amount=%q withdraw_amount=%q currency=%q label=%q unaccepted=%q",
+		c.Request.PostForm.Get("notification_type"),
+		c.Request.PostForm.Get("operation_id"),
+		c.Request.PostForm.Get("amount"),
+		c.Request.PostForm.Get("withdraw_amount"),
+		c.Request.PostForm.Get("currency"),
+		c.Request.PostForm.Get("label"),
+		c.Request.PostForm.Get("unaccepted"),
+	)
 
 	secret, err := a.getSecret()
 	if err != nil {

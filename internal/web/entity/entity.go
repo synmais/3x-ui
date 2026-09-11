@@ -53,7 +53,6 @@ type AllSetting struct {
 	YooMoneyClientID           string `json:"yoomoneyClientID" form:"yoomoneyClientID"`
 	YooMoneyClientSecret       string `json:"yoomoneyClientSecret" form:"yoomoneyClientSecret"`
 	YooMoneyNotificationSecret string `json:"yoomoneyNotificationSecret" form:"yoomoneyNotificationSecret"`
-	YooMoneyTargets            string `json:"yoomoneyTargets" form:"yoomoneyTargets"`
 
 	SmtpEnable         bool   `json:"smtpEnable" form:"smtpEnable"`
 	SmtpHost           string `json:"smtpHost" form:"smtpHost"`

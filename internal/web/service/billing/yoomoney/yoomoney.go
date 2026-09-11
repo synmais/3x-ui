@@ -12,7 +12,8 @@ import (
 type YooMoneyNotification struct {
 	NotificationType string
 	OperationID      string
-	Amount           int64 // kopecks
+	Amount           int64
+	WithdrawAmount   int64
 	Currency         string
 	Label            string
 	Unaccepted       string
@@ -43,8 +44,14 @@ func ParseYooMoneyNotification(
 	}
 
 	notificationType := values.Get("notification_type")
-	if notificationType != "p2p-incoming" {
-		return nil, fmt.Errorf("unsupported YooMoney notification type: %q", notificationType)
+	switch notificationType {
+	case "p2p-incoming", "card-incoming":
+		// Supported notification types.
+	default:
+		return nil, fmt.Errorf(
+			"unsupported YooMoney notification type: %q",
+			notificationType,
+		)
 	}
 
 	operationID := values.Get("operation_id")
@@ -57,6 +64,14 @@ func ParseYooMoneyNotification(
 		return nil, fmt.Errorf("invalid YooMoney amount: %w", err)
 	}
 
+	withdrawAmount := int64(0)
+	if rawWithdrawAmount := values.Get("withdraw_amount"); rawWithdrawAmount != "" {
+		withdrawAmount, err = parseYooMoneyAmount(rawWithdrawAmount)
+		if err != nil {
+			return nil, fmt.Errorf("invalid withdraw_amount: %w", err)
+		}
+	}
+
 	currency := values.Get("currency")
 	if currency == "" {
 		return nil, fmt.Errorf("missing YooMoney currency")
@@ -66,6 +81,7 @@ func ParseYooMoneyNotification(
 		NotificationType: notificationType,
 		OperationID:      operationID,
 		Amount:           amount,
+		WithdrawAmount:   withdrawAmount,
 		Currency:         currency,
 		Label:            values.Get("label"),
 		Unaccepted:       values.Get("unaccepted"),

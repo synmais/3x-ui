@@ -1468,10 +1468,7 @@
       "yoomoneyNotificationSecret": "Секрет уведомлений",
       "yoomoneyNotificationSecretDesc": "Секрет для проверки уведомлений об оплате YooMoney",
       "yoomoneyNotificationSecretConfigured": "Секрет уведомлений настроен",
-      "yoomoneyNotificationSecretPlaceholder": "Введите секрет уведомлений",
-
-      "yoomoneyTargets": "Назначение платежа",
-      "yoomoneyTargetsDesc": "Текст, отображаемый в назначении платежа"
+      "yoomoneyNotificationSecretPlaceholder": "Введите секрет уведомлений"
     },
     "xray": {
       "importRules": "Импорт правил",

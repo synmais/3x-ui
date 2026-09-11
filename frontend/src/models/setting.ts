@@ -31,7 +31,6 @@ export class AllSetting {
   yoomoneyClientID = '';
   yoomoneyClientSecret = '';
   yoomoneyNotificationSecret = '';
-  yoomoneyTargets = '';
 
   twoFactorEnable = false;
   twoFactorToken = '';

@@ -79,15 +79,11 @@ func (s *BillingService) CreatePayment(
 // YooMoneyPaymentURL builds a YooMoney payment URL.
 func YooMoneyPaymentURL(
 	wallet string,
-	targets string,
 	payment *model.Payment,
 	successURL string,
 ) (string, error) {
 	if wallet == "" {
 		return "", fmt.Errorf("YooMoney wallet is not configured")
-	}
-	if targets == "" {
-		return "", fmt.Errorf("YooMoney payment description is not configured")
 	}
 	if payment == nil {
 		return "", fmt.Errorf("payment is nil")
@@ -98,8 +94,7 @@ func YooMoneyPaymentURL(
 
 	values := url.Values{}
 	values.Set("receiver", wallet)
-	values.Set("quickpay-form", "shop")
-	values.Set("targets", targets)
+	values.Set("quickpay-form", "button")
 	values.Set("paymentType", "AC")
 	values.Set("sum", formatRUB(payment.Amount))
 	values.Set("label", payment.Label)
@@ -108,7 +103,7 @@ func YooMoneyPaymentURL(
 		values.Set("successURL", successURL)
 	}
 
-	return "https://yoomoney.ru/quickpay/confirm.xml?" + values.Encode(), nil
+	return "https://yoomoney.ru/quickpay/confirm?" + values.Encode(), nil
 }
 
 func formatRUB(amountKopecks int64) string {
@@ -149,11 +144,18 @@ func (s *BillingService) ConfirmYooMoneyPayment(
 		)
 	}
 
-	if payment.Amount != notification.Amount {
+	receivedAmount := notification.Amount
+
+	if notification.NotificationType == "card-incoming" &&
+		notification.WithdrawAmount > 0 {
+		receivedAmount = notification.WithdrawAmount
+	}
+
+	if payment.Amount != receivedAmount {
 		return nil, fmt.Errorf(
 			"payment amount mismatch: expected %d, got %d",
 			payment.Amount,
-			notification.Amount,
+			receivedAmount,
 		)
 	}
 
