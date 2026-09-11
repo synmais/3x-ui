@@ -1,6 +1,7 @@
 package billing
 
 import (
+	"net/url"
 	"path/filepath"
 	"testing"
 	"time"
@@ -295,5 +296,118 @@ func TestCompletePaymentRejectsPendingPayment(t *testing.T) {
 
 	if _, err := (&BillingService{}).CompletePayment(payment.ID); err == nil {
 		t.Fatal("expected error for pending payment")
+	}
+}
+
+func TestYooMoneyPaymentURL(t *testing.T) {
+	payment := &model.Payment{
+		Label:  "testlabel123456",
+		Amount: 10050,
+	}
+
+	const (
+		wallet     = "4100111122233344"
+		targets    = "Подписка SynVPN"
+		successURL = "https://example.com/success"
+	)
+
+	paymentURL, err := YooMoneyPaymentURL(
+		wallet,
+		targets,
+		payment,
+		successURL,
+	)
+	if err != nil {
+		t.Fatalf("YooMoneyPaymentURL() error = %v", err)
+	}
+
+	parsedURL, err := url.Parse(paymentURL)
+	if err != nil {
+		t.Fatalf("url.Parse() error = %v", err)
+	}
+
+	if parsedURL.Scheme != "https" {
+		t.Fatalf("URL scheme = %q, want https", parsedURL.Scheme)
+	}
+
+	if parsedURL.Host != "yoomoney.ru" {
+		t.Fatalf("URL host = %q, want yoomoney.ru", parsedURL.Host)
+	}
+
+	if parsedURL.Path != "/quickpay/confirm.xml" {
+		t.Fatalf("URL path = %q, want /quickpay/confirm.xml", parsedURL.Path)
+	}
+
+	values := parsedURL.Query()
+
+	tests := map[string]string{
+		"receiver":      wallet,
+		"quickpay-form": "shop",
+		"targets":       targets,
+		"paymentType":   "AC",
+		"sum":           "100.50",
+		"label":         payment.Label,
+		"successURL":    successURL,
+	}
+
+	for key, want := range tests {
+		if got := values.Get(key); got != want {
+			t.Errorf("%s = %q, want %q", key, got, want)
+		}
+	}
+}
+
+func TestYooMoneyPaymentURLRejectsInvalidInput(t *testing.T) {
+	payment := &model.Payment{
+		Label:  "testlabel123456",
+		Amount: 10050,
+	}
+
+	tests := []struct {
+		name    string
+		wallet  string
+		targets string
+		payment *model.Payment
+	}{
+		{
+			name:    "missing wallet",
+			wallet:  "",
+			targets: "Подписка SynVPN",
+			payment: payment,
+		},
+		{
+			name:    "missing targets",
+			wallet:  "4100111122233344",
+			targets: "",
+			payment: payment,
+		},
+		{
+			name:    "nil payment",
+			wallet:  "4100111122233344",
+			targets: "Подписка SynVPN",
+			payment: nil,
+		},
+		{
+			name:    "invalid amount",
+			wallet:  "4100111122233344",
+			targets: "Подписка SynVPN",
+			payment: &model.Payment{
+				Label:  "testlabel123456",
+				Amount: 0,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := YooMoneyPaymentURL(
+				tt.wallet,
+				tt.targets,
+				tt.payment,
+				"",
+			); err == nil {
+				t.Fatal("expected error")
+			}
+		})
 	}
 }
