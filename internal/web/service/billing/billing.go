@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -75,27 +74,6 @@ func (s *BillingService) CreatePayment(
 	}
 
 	return payment, nil
-}
-
-// YooMoneyLabel returns the internal label sent to YooMoney.
-func YooMoneyLabel(paymentID string) string {
-	return "synvpn:" + paymentID
-}
-
-// PaymentIDFromYooMoneyLabel extracts the internal payment ID.
-func PaymentIDFromYooMoneyLabel(label string) (string, error) {
-	const prefix = "synvpn:"
-
-	if !strings.HasPrefix(label, prefix) {
-		return "", fmt.Errorf("invalid payment label")
-	}
-
-	id := strings.TrimPrefix(label, prefix)
-	if id == "" {
-		return "", fmt.Errorf("empty payment ID")
-	}
-
-	return id, nil
 }
 
 // YooMoneyPaymentURL builds a YooMoney payment URL.

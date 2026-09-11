@@ -344,7 +344,7 @@ func (t *Tgbot) confirmRegistration(chatID int64, tgUserID int64) {
 	}
 
 	targets, err := t.settingService.GetYooMoneyTargets()
-	if err != nil {
+	if err != nil || strings.TrimSpace(targets) == "" {
 		t.SendMsgToTgbot(
 			chatID,
 			"❌ Оплата сейчас недоступна. Попробуйте позже.",
