@@ -50,7 +50,10 @@ type AllSetting struct {
 	TgEnabledEvents string `json:"tgEnabledEvents" form:"tgEnabledEvents"`
 
 	YooMoneyWallet             string `json:"yoomoneyWallet" form:"yoomoneyWallet"`
+	YooMoneyClientID           string `json:"yoomoneyClientID" form:"yoomoneyClientID"`
+	YooMoneyClientSecret       string `json:"yoomoneyClientSecret" form:"yoomoneyClientSecret"`
 	YooMoneyNotificationSecret string `json:"yoomoneyNotificationSecret" form:"yoomoneyNotificationSecret"`
+	YooMoneyTargets            string `json:"yoomoneyTargets" form:"yoomoneyTargets"`
 
 	SmtpEnable         bool   `json:"smtpEnable" form:"smtpEnable"`
 	SmtpHost           string `json:"smtpHost" form:"smtpHost"`
@@ -148,6 +151,7 @@ type AllSettingView struct {
 	HasNordSecret                 bool `json:"hasNordSecret"`
 	HasSmtpPassword               bool `json:"hasSmtpPassword"`
 	HasYooMoneyNotificationSecret bool `json:"hasYooMoneyNotificationSecret"`
+	HasYooMoneyClientSecret       bool `json:"hasYooMoneyClientSecret"`
 }
 
 func pathHasForbiddenChar(s string) bool {

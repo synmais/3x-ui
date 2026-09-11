@@ -82,7 +82,10 @@ var defaultValueMap = map[string]string{
 	"tgMemory":                    "80",
 	"tgLang":                      "en-US",
 	"yoomoneyWallet":              "",
+	"yoomoneyClientID":            "",
+	"yoomoneyClientSecret":        "",
 	"yoomoneyNotificationSecret":  "",
+	"yoomoneyTargets":             "",
 	"twoFactorEnable":             "false",
 	"twoFactorToken":              "",
 	"subEnable":                   "true",
@@ -279,6 +282,7 @@ func (s *SettingService) GetAllSettingView() (*entity.AllSettingView, error) {
 	view.HasNordSecret = secretConfigured(mustString(s.GetNord()))
 	view.HasSmtpPassword = secretConfigured(allSetting.SmtpPassword)
 	view.HasYooMoneyNotificationSecret = secretConfigured(allSetting.YooMoneyNotificationSecret)
+	view.HasYooMoneyClientSecret = secretConfigured(allSetting.YooMoneyClientSecret)
 	var apiTokenCount int64
 	if err := database.GetDB().Model(model.ApiToken{}).Where("enabled = ?", true).Count(&apiTokenCount).Error; err == nil {
 		view.HasApiToken = apiTokenCount > 0
@@ -288,6 +292,7 @@ func (s *SettingService) GetAllSettingView() (*entity.AllSettingView, error) {
 	view.LdapPassword = ""
 	view.SmtpPassword = ""
 	view.YooMoneyNotificationSecret = ""
+	view.YooMoneyClientSecret = ""
 	return view, nil
 }
 
@@ -1198,6 +1203,7 @@ type SecretClears struct {
 	TgBotToken                 bool
 	LdapPassword               bool
 	SmtpPassword               bool
+	YooMoneyClientSecret       bool
 	YooMoneyNotificationSecret bool
 }
 
@@ -1328,6 +1334,13 @@ func (s *SettingService) preserveRedactedSecrets(allSetting *entity.AllSetting, 
 			return err
 		}
 		allSetting.YooMoneyNotificationSecret = value
+	}
+	if !clears.YooMoneyClientSecret && strings.TrimSpace(allSetting.YooMoneyClientSecret) == "" {
+		value, err := s.GetYooMoneyClientSecret()
+		if err != nil {
+			return err
+		}
+		allSetting.YooMoneyClientSecret = value
 	}
 	return nil
 }
@@ -1541,6 +1554,7 @@ func (s *SettingService) GetFactoryDefaults() map[string]string {
 }
 
 // Yoomoney
+
 func (s *SettingService) GetYooMoneyWallet() (string, error) {
 	return s.getString("yoomoneyWallet")
 }
@@ -1549,10 +1563,34 @@ func (s *SettingService) SetYooMoneyWallet(value string) error {
 	return s.setString("yoomoneyWallet", value)
 }
 
+func (s *SettingService) GetYooMoneyClientID() (string, error) {
+	return s.getString("yoomoneyClientID")
+}
+
+func (s *SettingService) SetYooMoneyClientID(value string) error {
+	return s.setString("yoomoneyClientID", value)
+}
+
+func (s *SettingService) GetYooMoneyClientSecret() (string, error) {
+	return s.getString("yoomoneyClientSecret")
+}
+
+func (s *SettingService) SetYooMoneyClientSecret(value string) error {
+	return s.setString("yoomoneyClientSecret", value)
+}
+
 func (s *SettingService) GetYooMoneyNotificationSecret() (string, error) {
 	return s.getString("yoomoneyNotificationSecret")
 }
 
 func (s *SettingService) SetYooMoneyNotificationSecret(value string) error {
 	return s.setString("yoomoneyNotificationSecret", value)
+}
+
+func (s *SettingService) GetYooMoneyTargets() (string, error) {
+	return s.getString("yoomoneyTargets")
+}
+
+func (s *SettingService) SetYooMoneyTargets(value string) error {
+	return s.setString("yoomoneyTargets", value)
 }

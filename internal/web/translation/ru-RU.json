@@ -1452,7 +1452,26 @@
           "httpMethodDesc": "Метод запросов при проверках.",
           "note": "Балансировщики leastPing/leastLoad всегда содержат burst-обсерваторию. Этот переключатель настраивает её параметры проб — выключите, чтобы использовать встроенные значения по умолчанию. Изменения применяются после перезапуска панели."
         }
-      }
+      },
+      "yoomoneySettings": "YooMoney",
+      "yoomoneyWallet": "Кошелёк YooMoney",
+      "yoomoneyWalletDesc": "Номер кошелька YooMoney для получения оплаты за подписки",
+
+      "yoomoneyClientId": "OAuth2 Client ID",
+      "yoomoneyClientIdDesc": "Идентификатор клиентского приложения OAuth2",
+
+      "yoomoneyClientSecret": "OAuth2 Client Secret",
+      "yoomoneyClientSecretDesc": "Секрет для OAuth2-аутентификации в YooMoney",
+      "yoomoneyClientSecretConfigured": "OAuth2 Client Secret настроен",
+      "yoomoneyClientSecretPlaceholder": "Введите OAuth2 Client Secret",
+
+      "yoomoneyNotificationSecret": "Секрет уведомлений",
+      "yoomoneyNotificationSecretDesc": "Секрет для проверки уведомлений об оплате YooMoney",
+      "yoomoneyNotificationSecretConfigured": "Секрет уведомлений настроен",
+      "yoomoneyNotificationSecretPlaceholder": "Введите секрет уведомлений",
+
+      "yoomoneyTargets": "Назначение платежа",
+      "yoomoneyTargetsDesc": "Текст, отображаемый в назначении платежа"
     },
     "xray": {
       "importRules": "Импорт правил",

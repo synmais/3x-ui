@@ -26,8 +26,13 @@ export class AllSetting {
   tgCpu = 80;
   tgMemory = 80;
   tgLang = 'en-US';
+
   yoomoneyWallet = '';
+  yoomoneyClientID = '';
+  yoomoneyClientSecret = '';
   yoomoneyNotificationSecret = '';
+  yoomoneyTargets = '';
+
   twoFactorEnable = false;
   twoFactorToken = '';
   xrayTemplateConfig = '';
@@ -116,11 +121,16 @@ export class AllSetting {
   hasWarpSecret = false;
   hasNordSecret = false;
   hasSmtpPassword = false;
+
   hasYooMoneyNotificationSecret = false;
+  hasYooMoneyClientSecret = false;
+
   clearTgBotToken = false;
   clearLdapPassword = false;
   clearSmtpPassword = false;
+
   clearYooMoneyNotificationSecret = false;
+  clearYooMoneyClientSecret = false;
 
   constructor(data?: unknown) {
     if (data != null) {

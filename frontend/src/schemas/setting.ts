@@ -106,6 +106,7 @@ export const AllSettingSchema = z
     hasNordSecret: z.boolean().optional(),
     hasSmtpPassword: z.boolean().optional(),
     hasYooMoneyNotificationSecret: z.boolean().optional(),
+    hasYooMoneyClientSecret: z.boolean().optional(),
   })
   .loose();
 

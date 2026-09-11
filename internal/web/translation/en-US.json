@@ -1574,10 +1574,22 @@
       "yoomoneySettings": "YooMoney",
       "yoomoneyWallet": "YooMoney wallet",
       "yoomoneyWalletDesc": "YooMoney wallet number used to receive subscription payments",
+
+      "yoomoneyClientId": "OAuth2 Client ID",
+      "yoomoneyClientIdDesc": "OAuth2 application client ID",
+
+      "yoomoneyClientSecret": "OAuth2 Client Secret",
+      "yoomoneyClientSecretDesc": "Secret used for YooMoney OAuth2 authentication",
+      "yoomoneyClientSecretConfigured": "OAuth2 client secret is configured",
+      "yoomoneyClientSecretPlaceholder": "Enter OAuth2 client secret",
+
       "yoomoneyNotificationSecret": "Notification secret",
       "yoomoneyNotificationSecretDesc": "Secret used to verify YooMoney payment notifications",
       "yoomoneyNotificationSecretConfigured": "Notification secret is configured",
-      "yoomoneyNotificationSecretPlaceholder": "Enter notification secret"
+      "yoomoneyNotificationSecretPlaceholder": "Enter notification secret",
+
+      "yoomoneyTargets": "Payment description",
+      "yoomoneyTargetsDesc": "Text displayed as the payment description"
     },
     "xray": {
       "save": "Save",
