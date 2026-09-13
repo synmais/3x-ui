@@ -2199,6 +2199,8 @@
       "onlines": "Online Clients",
       "commands": "Commands",
       "devices": "📱 Devices",
+      "renewSubscription": "🔄 Renew subscription",
+      "addSubscription": "➕ Add subscription",
       "deleteDevice": "❌ Remove device",
       "confirmDeleteDevice": "✅ Remove device",
       "back": "⬅️ Back",

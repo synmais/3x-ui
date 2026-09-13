@@ -61,10 +61,10 @@ func (t *Tgbot) SendAnswer(chatId int64, msg string, isAdmin bool) {
 		),
 		tu.InlineKeyboardRow(
 			tu.InlineKeyboardButton(t.I18nBot("pages.settings.subSettings")).WithCallbackData(t.encodeQuery("client_sub_links")),
-			tu.InlineKeyboardButton(t.I18nBot("subscription.individualLinks")).WithCallbackData(t.encodeQuery("client_individual_links")),
+			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.renewSubscription")).WithCallbackData("client_renew"),
 		),
 		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("qrCode")).WithCallbackData(t.encodeQuery("client_qr_links")),
+			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.addSubscription")).WithCallbackData("client_add_subscription"),
 		),
 	)
 

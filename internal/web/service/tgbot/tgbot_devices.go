@@ -36,7 +36,7 @@ func (t *Tgbot) showClientDevices(chatID, tgUserID int64, email string, messageI
 	if record.LimitHwid > 0 {
 		limit = strconv.Itoa(record.LimitHwid)
 	}
-	text := t.I18nBot("tgbot.devices.list", "Used=="+strconv.Itoa(len(hwids)), "Limit=="+limit)
+	text := t.I18nBot("tgbot.devices.list", "Used=="+strconv.Itoa(len(hwids)), "DeviceWord=="+russianDeviceWord(len(hwids)), "Limit=="+limit)
 	if len(hwids) == 0 {
 		text += "\r\n" + t.I18nBot("tgbot.devices.empty")
 	}

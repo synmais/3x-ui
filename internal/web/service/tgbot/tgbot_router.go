@@ -1119,7 +1119,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 
 		t.startRegistration(chatId, callbackQuery.From)
 
-	case "register_cancel":
+	case "register_cancel", "subscription_cancel":
 		registrationMgr.clear(chatId)
 		t.SendMsgToTgbotDeleteAfter(
 			chatId,
@@ -1128,12 +1128,12 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			tu.ReplyKeyboardRemove(),
 		)
 
-	case "register_confirm":
+	case "register_confirm", "subscription_confirm":
 		t.sendCallbackAnswerTgBot(
 			callbackQuery.ID,
 			t.I18nBot("tgbot.answers.successfulOperation"),
 		)
-		t.confirmRegistration(chatId, callbackQuery.From.ID)
+		t.confirmPurchase(chatId, callbackQuery.From.ID)
 
 	case "client_traffic":
 		tgUserID := callbackQuery.From.ID
@@ -1177,6 +1177,10 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.commands.helpClientCommands"))
 	case "client_devices":
 		t.showOwnDevices(chatId, callbackQuery.From.ID)
+	case "client_renew":
+		t.startOwnRenewal(chatId, callbackQuery.From)
+	case "client_add_subscription":
+		t.startPurchase(chatId, callbackQuery.From, purchaseCreate, "")
 	case "client_sub_links":
 		// show user's own clients to choose one for sub links
 		tgUserID := callbackQuery.From.ID
@@ -1528,14 +1532,14 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		}
 	default:
 
-		if strings.HasPrefix(callbackQuery.Data, "register_tariff_") {
-			tariffID := strings.TrimPrefix(callbackQuery.Data, "register_tariff_")
-			t.registrationTariff(chatId, callbackQuery.From.ID, tariffID)
+		if strings.HasPrefix(callbackQuery.Data, "register_tariff_") || strings.HasPrefix(callbackQuery.Data, "subscription_tariff_") {
+			tariffID := strings.TrimPrefix(strings.TrimPrefix(callbackQuery.Data, "register_tariff_"), "subscription_tariff_")
+			t.purchaseTariff(chatId, callbackQuery.From.ID, tariffID)
 			return
 		}
 
-		if strings.HasPrefix(callbackQuery.Data, "register_period_") {
-			monthsStr := strings.TrimPrefix(callbackQuery.Data, "register_period_")
+		if strings.HasPrefix(callbackQuery.Data, "register_period_") || strings.HasPrefix(callbackQuery.Data, "subscription_period_") {
+			monthsStr := strings.TrimPrefix(strings.TrimPrefix(callbackQuery.Data, "register_period_"), "subscription_period_")
 
 			months, err := strconv.Atoi(monthsStr)
 			if err != nil {
@@ -1543,7 +1547,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 				return
 			}
 
-			t.registrationPeriod(chatId, callbackQuery.From.ID, months)
+			t.purchasePeriod(chatId, callbackQuery.From.ID, months)
 			return
 		}
 
@@ -1570,6 +1574,10 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		}
 		if after, ok := strings.CutPrefix(callbackQuery.Data, "client_devices "); ok {
 			t.showClientDevices(chatId, callbackQuery.From.ID, after)
+			return
+		}
+		if after, ok := strings.CutPrefix(callbackQuery.Data, "client_renew "); ok {
+			t.startRenewal(chatId, callbackQuery.From, after)
 			return
 		}
 		if after, ok := strings.CutPrefix(callbackQuery.Data, "client_device "); ok {
@@ -1612,7 +1620,7 @@ func checkAdmin(tgId int64) bool {
 // safe to run for a non-admin. Every other callback is admin-only (default-deny).
 func isClientSelfCallback(data string) bool {
 	switch data {
-	case "register_user", "register_cancel":
+	case "register_user", "register_cancel", "subscription_cancel", "subscription_confirm", "client_renew", "client_add_subscription":
 		return true
 	case "client_traffic", "client_commands", "client_devices", "client_sub_links",
 		"client_individual_links", "client_qr_links":
@@ -1620,13 +1628,14 @@ func isClientSelfCallback(data string) bool {
 	case "register_confirm":
 		return true
 	}
-	if strings.HasPrefix(data, "register_tariff_") {
+	if strings.HasPrefix(data, "register_tariff_") || strings.HasPrefix(data, "subscription_tariff_") {
 		return true
 	}
-	if strings.HasPrefix(data, "register_period_") {
+	if strings.HasPrefix(data, "register_period_") || strings.HasPrefix(data, "subscription_period_") {
 		return true
 	}
 	return strings.HasPrefix(data, "client_traffic ") ||
+		strings.HasPrefix(data, "client_renew ") ||
 		strings.HasPrefix(data, "client_devices ") ||
 		strings.HasPrefix(data, "client_device ") ||
 		strings.HasPrefix(data, "client_device_remove ") ||

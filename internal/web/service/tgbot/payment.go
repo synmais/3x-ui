@@ -48,6 +48,14 @@ func (t *Tgbot) CreateClientFromPayment(payment *model.Payment) error {
 
 		for _, inboundID := range inboundIDs {
 			if inboundID == tariff.InboundID {
+				newExpiry := calculateSubscriptionExpiry(record.ExpiryTime, payment.Months, time.Now())
+				needRestart, err := t.clientService.ResetClientExpiryTimeByEmail(&t.inboundService, payment.ClientEmail, newExpiry)
+				if err != nil {
+					return err
+				}
+				if needRestart {
+					t.xrayService.SetToNeedRestart()
+				}
 				return nil
 			}
 		}
@@ -110,6 +118,7 @@ func (t *Tgbot) ProcessYooMoneyPayment(payment *model.Payment) error {
 		)
 	}
 
+	_, renewal := t.clientService.GetRecordByEmail(nil, payment.ClientEmail)
 	if err := t.CreateClientFromPayment(payment); err != nil {
 		return err
 	}
@@ -119,11 +128,11 @@ func (t *Tgbot) ProcessYooMoneyPayment(payment *model.Payment) error {
 		return err
 	}
 
-	t.SendMsgToTgbot(
-		payment.TgID,
-		"✅ <b>Оплата получена!</b>\n\n"+
-			"Подписка создана. Сейчас подготовим ссылку на подключение.",
-	)
+	message := "✅ <b>Оплата получена!</b>\n\nПодписка создана. Сейчас подготовим ссылку на подключение."
+	if renewal == nil {
+		message = "✅ <b>Оплата получена!</b>\n\nПодписка продлена."
+	}
+	t.SendMsgToTgbot(payment.TgID, message)
 
 	t.sendClientSubLinks(payment.TgID, payment.ClientEmail)
 
