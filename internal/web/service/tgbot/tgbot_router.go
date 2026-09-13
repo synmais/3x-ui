@@ -1175,6 +1175,8 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 	case "client_commands":
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.commands"))
 		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.commands.helpClientCommands"))
+	case "client_devices":
+		t.showOwnDevices(chatId, callbackQuery.From.ID)
 	case "client_sub_links":
 		// show user's own clients to choose one for sub links
 		tgUserID := callbackQuery.From.ID
@@ -1566,6 +1568,37 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			t.sendClientQRLinks(chatId, email)
 			return
 		}
+		if after, ok := strings.CutPrefix(callbackQuery.Data, "client_devices "); ok {
+			t.showClientDevices(chatId, callbackQuery.From.ID, after)
+			return
+		}
+		if after, ok := strings.CutPrefix(callbackQuery.Data, "client_device "); ok {
+			parts := strings.Fields(after)
+			if len(parts) == 2 {
+				if id, err := strconv.Atoi(parts[1]); err == nil {
+					t.showDevice(chatId, callbackQuery.From.ID, parts[0], id, callbackQuery.Message.GetMessageID())
+					return
+				}
+			}
+		}
+		if after, ok := strings.CutPrefix(callbackQuery.Data, "client_device_remove "); ok {
+			parts := strings.Fields(after)
+			if len(parts) == 2 {
+				if id, err := strconv.Atoi(parts[1]); err == nil {
+					t.confirmDeviceRemoval(chatId, callbackQuery.From.ID, parts[0], id, callbackQuery.Message.GetMessageID())
+					return
+				}
+			}
+		}
+		if after, ok := strings.CutPrefix(callbackQuery.Data, "client_device_delete "); ok {
+			parts := strings.Fields(after)
+			if len(parts) == 2 {
+				if id, err := strconv.Atoi(parts[1]); err == nil {
+					t.deleteDevice(chatId, callbackQuery.From.ID, callbackQuery.ID, parts[0], id, callbackQuery.Message.GetMessageID())
+					return
+				}
+			}
+		}
 	}
 }
 
@@ -1581,7 +1614,7 @@ func isClientSelfCallback(data string) bool {
 	switch data {
 	case "register_user", "register_cancel":
 		return true
-	case "client_traffic", "client_commands", "client_sub_links",
+	case "client_traffic", "client_commands", "client_devices", "client_sub_links",
 		"client_individual_links", "client_qr_links":
 		return true
 	case "register_confirm":
@@ -1594,6 +1627,10 @@ func isClientSelfCallback(data string) bool {
 		return true
 	}
 	return strings.HasPrefix(data, "client_traffic ") ||
+		strings.HasPrefix(data, "client_devices ") ||
+		strings.HasPrefix(data, "client_device ") ||
+		strings.HasPrefix(data, "client_device_remove ") ||
+		strings.HasPrefix(data, "client_device_delete ") ||
 		strings.HasPrefix(data, "client_sub_links ") ||
 		strings.HasPrefix(data, "client_individual_links ") ||
 		strings.HasPrefix(data, "client_qr_links ")

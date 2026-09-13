@@ -2198,6 +2198,10 @@
       "clientUsage": "Статистика клиента",
       "onlines": "🟢 Онлайн",
       "commands": "🖱️ Команды",
+      "devices": "📱 Устройства",
+      "deleteDevice": "❌ Удалить устройство",
+      "confirmDeleteDevice": "✅ Удалить устройство",
+      "back": "⬅️ Назад",
       "refresh": "🔄 Обновить",
       "clearIPs": "❌ Очистить IP",
       "removeTGUser": "❌ Удалить пользователя Telegram",
@@ -2224,9 +2228,21 @@
       "ResetAllTraffics": "Сбросить весь трафик",
       "SortedTrafficUsageReport": "Отсортированный отчет об использовании трафика"
     },
+    "devices": {
+      "list": "📱 <b>Устройства</b>\r\n\r\nИспользуется устройств: <b>{{ .Used }}/{{ .Limit }}</b>.\r\n\r\nВыберите устройство:",
+      "empty": "Подключённых устройств пока нет.",
+      "selectClient": "Выберите подписку:",
+      "detail": "📱 <b>Устройство</b>\r\n\r\nИмя: <b>{{ .Name }}</b>\r\nHWID: <i>хранится в защищённом виде</i>\r\nДата подключения: {{ .FirstSeen }}\r\nПоследний вход: {{ .LastSeen }}{{ .Details }}",
+      "confirmRemove": "Удалить это устройство? При следующем получении подписки ему потребуется зарегистрироваться заново.",
+      "os": "ОС: {{ .Value }}",
+      "osVersion": "Версия ОС: {{ .Value }}",
+      "model": "Модель: {{ .Value }}",
+      "userAgent": "User-Agent: <code>{{ .Value }}</code>"
+    },
     "answers": {
       "successfulOperation": "✅ Успешно!",
       "errorOperation": "❗ Ошибка в операции.",
+      "deviceDeleted": "✅ Устройство удалено.",
       "getInboundsFailed": "❌ Не удалось получить входящие подключения.",
       "getClientsFailed": "❌ Не удалось получить клиентов.",
       "canceled": "❌ {{ .Email }}: Операция отменена.",

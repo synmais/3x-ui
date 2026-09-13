@@ -2198,6 +2198,10 @@
       "clientUsage": "Get Usage",
       "onlines": "Online Clients",
       "commands": "Commands",
+      "devices": "📱 Devices",
+      "deleteDevice": "❌ Remove device",
+      "confirmDeleteDevice": "✅ Remove device",
+      "back": "⬅️ Back",
       "refresh": "🔄 Refresh",
       "clearIPs": "❌ Clear IPs",
       "removeTGUser": "❌ Remove Telegram User",
@@ -2224,9 +2228,21 @@
       "ResetAllTraffics": "Reset All Traffic",
       "SortedTrafficUsageReport": "Sorted Traffic Usage Report"
     },
+    "devices": {
+      "list": "📱 <b>Devices</b>\r\n\r\nDevices in use: <b>{{ .Used }}/{{ .Limit }}</b>.\r\n\r\nSelect a device:",
+      "empty": "No connected devices yet.",
+      "selectClient": "Select a subscription:",
+      "detail": "📱 <b>Device</b>\r\n\r\nName: <b>{{ .Name }}</b>\r\nHWID: <i>stored securely</i>\r\nFirst connected: {{ .FirstSeen }}\r\nLast active: {{ .LastSeen }}{{ .Details }}",
+      "confirmRemove": "Remove this device? It will need to register again the next time it fetches the subscription.",
+      "os": "OS: {{ .Value }}",
+      "osVersion": "OS version: {{ .Value }}",
+      "model": "Model: {{ .Value }}",
+      "userAgent": "User-Agent: <code>{{ .Value }}</code>"
+    },
     "answers": {
       "successfulOperation": "✅ Operation successful!",
       "errorOperation": "❗ Error in operation.",
+      "deviceDeleted": "✅ Device removed.",
       "getInboundsFailed": "❌ Failed to get inbounds.",
       "getClientsFailed": "❌ Failed to get clients.",
       "canceled": "❌ {{ .Email }}: Operation canceled.",
