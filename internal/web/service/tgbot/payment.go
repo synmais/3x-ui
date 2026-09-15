@@ -48,13 +48,27 @@ func (t *Tgbot) CreateClientFromPayment(payment *model.Payment) error {
 
 		for _, inboundID := range inboundIDs {
 			if inboundID == tariff.InboundID {
-				newExpiry := calculateSubscriptionExpiry(record.ExpiryTime, payment.Months, time.Now())
+				now := time.Now()
+				newExpiry := calculateSubscriptionExpiry(record.ExpiryTime, payment.Months, now)
+				if current := tariffForRecord(record.TotalGB, record.LimitHwid); current != nil && current.ID != tariff.ID {
+					newExpiry = now.AddDate(0, payment.Months, convertedTariffDays(record.ExpiryTime, *current, tariff, now)).UnixMilli()
+				}
 				needRestart, err := t.clientService.ResetClientExpiryTimeByEmail(&t.inboundService, payment.ClientEmail, newExpiry)
 				if err != nil {
 					return err
 				}
 				if needRestart {
 					t.xrayService.SetToNeedRestart()
+				}
+				needRestart, err = t.clientService.ResetClientTrafficLimitByEmail(&t.inboundService, payment.ClientEmail, int(tariff.TotalGB))
+				if err != nil {
+					return err
+				}
+				if needRestart {
+					t.xrayService.SetToNeedRestart()
+				}
+				if err := t.clientService.SetClientLimitHwidByEmail(payment.ClientEmail, tariff.LimitHWID); err != nil {
+					return err
 				}
 				return nil
 			}

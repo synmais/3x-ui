@@ -23,7 +23,7 @@ type registrationState struct {
 	TgID, UpdatedAt                int64
 	Comment, ClientEmail, TariffID string
 	Kind                           purchaseKind
-	Months                         int
+	Months, CarryoverDays          int
 }
 
 type registrationStore struct {
@@ -120,13 +120,27 @@ func (t *Tgbot) purchasePeriod(chatID, tgUserID int64, months int) {
 		return
 	}
 	state.Months, state.UpdatedAt = months, time.Now().UnixMilli()
+	state.CarryoverDays = 0
+	warning := ""
+	if state.Kind == purchaseRenew {
+		if record, err := t.clientService.GetRecordByEmail(nil, state.ClientEmail); err == nil {
+			if current := tariffForRecord(record.TotalGB, record.LimitHwid); current != nil && current.ID != tariff.ID {
+				state.CarryoverDays = convertedTariffDays(record.ExpiryTime, *current, *tariff, time.Now())
+				warning = fmt.Sprintf("\n\n⚠️ Выбранный тариф не соответствует текущему. Остаток пересчитан: <b>%d %s</b> нового тарифа добавлено к выбранному сроку.", state.CarryoverDays, russianDayWord(state.CarryoverDays))
+			}
+		}
+	}
 	registrationMgr.set(chatID, state)
 	price, action := tariff.Price(*period), "Подтвердить регистрацию?"
 	if state.Kind == purchaseRenew {
 		action = "Подтвердить продление?"
 	}
 	keyboard := tu.InlineKeyboard(tu.InlineKeyboardRow(tu.InlineKeyboardButton("✅ Подтвердить").WithCallbackData("subscription_confirm")), tu.InlineKeyboardRow(tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel")))
-	t.SendMsgToTgbot(chatID, fmt.Sprintf("📋 <b>Ваша подписка</b>\n\n%s\n📅 %d мес.\n💰 <b>%d ₽</b> (%d ₽/мес.)\n\n%s", tariffSummary(*tariff), period.Months, price, price/int64(period.Months), action), keyboard)
+	totalTerm := fmt.Sprintf("%d мес.", period.Months)
+	if state.CarryoverDays > 0 {
+		totalTerm += fmt.Sprintf(" + %d %s", state.CarryoverDays, russianDayWord(state.CarryoverDays))
+	}
+	t.SendMsgToTgbot(chatID, fmt.Sprintf("📋 <b>Ваша подписка</b>\n\n%s\n📅 %s\n💰 <b>%d ₽</b> (%d ₽/мес.)%s\n\n%s", tariffSummary(*tariff), totalTerm, price, price/int64(period.Months), warning, action), keyboard)
 }
 
 func (t *Tgbot) confirmPurchase(chatID, tgUserID int64) {
@@ -221,4 +235,41 @@ func russianDeviceWord(count int) string {
 		return "устройства"
 	}
 	return "устройств"
+}
+
+func russianDayWord(count int) string {
+	mod100 := count % 100
+	if mod100 >= 11 && mod100 <= 14 {
+		return "дней"
+	}
+
+	switch count % 10 {
+	case 1:
+		return "день"
+	case 2, 3, 4:
+		return "дня"
+	default:
+		return "дней"
+	}
+}
+
+func tariffForRecord(totalGB int64, limitHWID int) *Tariff {
+	for i := range tariffs {
+		if tariffs[i].TotalGB*1024*1024*1024 == totalGB && tariffs[i].LimitHWID == limitHWID {
+			return &tariffs[i]
+		}
+	}
+	return nil
+}
+
+// convertedTariffDays converts remaining subscription days from the old tariff
+// into an equivalent number of days at the new tariff.
+// A month is priced as 30 days so the rule is predictable to subscribers.
+func convertedTariffDays(expiry int64, oldTariff, newTariff Tariff, now time.Time) int {
+	if expiry <= now.UnixMilli() || oldTariff.MonthlyPrice <= 0 || newTariff.MonthlyPrice <= 0 {
+		return 0
+	}
+	remaining := time.UnixMilli(expiry).Sub(now)
+	days := int((remaining + 24*time.Hour - 1) / (24 * time.Hour))
+	return days * int(oldTariff.MonthlyPrice) / int(newTariff.MonthlyPrice)
 }

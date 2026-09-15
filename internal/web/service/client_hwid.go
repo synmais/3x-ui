@@ -246,6 +246,13 @@ func (s *ClientService) setClientLimitHwidByEmail(tx *gorm.DB, email string, lim
 	return trimClientHwidsForSubID(tx, subID, effective)
 }
 
+// SetClientLimitHwidByEmail updates the HWID limit and removes excess devices
+// when a lower limit is selected. It is used by payment flows that change a
+// subscription tariff without otherwise editing the client configuration.
+func (s *ClientService) SetClientLimitHwidByEmail(email string, limit int) error {
+	return s.setClientLimitHwidByEmail(nil, email, limit)
+}
+
 func trimClientHwidsForSubID(tx *gorm.DB, subID string, limit int) error {
 	subID = strings.TrimSpace(subID)
 	if subID == "" || limit <= 0 {
