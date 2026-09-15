@@ -181,8 +181,30 @@ func (t *Tgbot) confirmPurchase(chatID, tgUserID int64) {
 	if state.Kind == purchaseRenew {
 		action, after = "продления", "подписка будет продлена автоматически."
 	}
-	keyboard := tu.InlineKeyboard(tu.InlineKeyboardRow(tu.InlineKeyboardButton(fmt.Sprintf("💳 Оплатить %d ₽", price)).WithURL(paymentURL)))
-	t.SendMsgToTgbot(chatID, fmt.Sprintf("💳 <b>Оплата %s</b>\n\n%s\n📅 %d мес.\n💰 <b>%d ₽</b>\n\nПосле оплаты %s", action, tariffSummary(*tariff), period.Months, price, after), keyboard)
+
+	totalTerm := fmt.Sprintf("%d мес.", period.Months)
+	if state.CarryoverDays > 0 {
+		totalTerm += fmt.Sprintf(" + %d %s", state.CarryoverDays, russianDayWord(state.CarryoverDays))
+	}
+
+	keyboard := tu.InlineKeyboard(
+		tu.InlineKeyboardRow(
+			tu.InlineKeyboardButton(fmt.Sprintf("💳 Оплатить %d ₽", price)).WithURL(paymentURL),
+		),
+	)
+
+	t.SendMsgToTgbot(
+		chatID,
+		fmt.Sprintf(
+			"💳 <b>Оплата %s</b>\n\n%s\n📅 %s\n💰 <b>%d ₽</b>\n\nПосле оплаты %s\n\n⚠️ <b>Важно о комиссии</b>\n\nДанная операция может трактоваться банком как перевод по номеру карты.\n\nНапример, Альфа-Банк может взимать комиссию 1,95%% + 49 ₽, тогда как Сбербанк, Т-Банк и МТС Деньги в рамках ежемесячного лимита комиссию не взимают.\n\nУточните размер комиссии за переводы по номеру карты в вашем банке перед оплатой.",
+			action,
+			tariffSummary(*tariff),
+			totalTerm,
+			price,
+			after,
+		),
+		keyboard,
+	)
 }
 
 func (t *Tgbot) purchaseState(chatID, tgUserID int64) (registrationState, bool) {
