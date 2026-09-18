@@ -1530,22 +1530,11 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		}
 	default:
 
-		if strings.HasPrefix(callbackQuery.Data, "register_tariff_") || strings.HasPrefix(callbackQuery.Data, "subscription_tariff_") {
-			tariffID := strings.TrimPrefix(strings.TrimPrefix(callbackQuery.Data, "register_tariff_"), "subscription_tariff_")
-			t.purchaseTariff(chatId, callbackQuery.From.ID, tariffID)
+		if t.handleTariffCallback(chatId, callbackQuery.From.ID, callbackQuery.Data) {
 			return
 		}
 
-		if strings.HasPrefix(callbackQuery.Data, "register_period_") || strings.HasPrefix(callbackQuery.Data, "subscription_period_") {
-			monthsStr := strings.TrimPrefix(strings.TrimPrefix(callbackQuery.Data, "register_period_"), "subscription_period_")
-
-			months, err := strconv.Atoi(monthsStr)
-			if err != nil {
-				t.SendMsgToTgbot(chatId, "Некорректный срок регистрации.")
-				return
-			}
-
-			t.purchasePeriod(chatId, callbackQuery.From.ID, months)
+		if t.handlePeriodCallback(chatId, callbackQuery.From.ID, callbackQuery.Data) {
 			return
 		}
 
