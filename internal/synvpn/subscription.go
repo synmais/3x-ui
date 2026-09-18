@@ -36,3 +36,20 @@ func ConvertedTariffDays(expiry int64, oldTariff, newTariff Tariff, now time.Tim
 
 	return days * int(oldTariff.MonthlyPrice) / int(newTariff.MonthlyPrice)
 }
+
+func CalculatePurchaseCarryover(
+	kind PurchaseKind,
+	expiry int64,
+	currentTariff, newTariff *Tariff,
+	now time.Time,
+) int {
+	if kind != PurchaseRenew || currentTariff == nil || newTariff == nil {
+		return 0
+	}
+
+	if currentTariff.ID == newTariff.ID {
+		return 0
+	}
+
+	return ConvertedTariffDays(expiry, *currentTariff, *newTariff, now)
+}

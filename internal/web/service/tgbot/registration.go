@@ -100,9 +100,20 @@ func (t *Tgbot) purchasePeriod(chatID, tgUserID int64, months int) {
 	warning := ""
 	if state.Kind == synvpn.PurchaseRenew {
 		if record, err := t.clientService.GetRecordByEmail(nil, state.ClientEmail); err == nil {
-			if current := synvpn.FindTariffForRecord(record.TotalGB, record.LimitHwid); current != nil && current.ID != tariff.ID {
-				state.CarryoverDays = synvpn.ConvertedTariffDays(record.ExpiryTime, *current, *tariff, time.Now())
-				warning = fmt.Sprintf("\n\n⚠️ Выбранный тариф не соответствует текущему. Остаток пересчитан: <b>%d %s</b> нового тарифа добавлено к выбранному сроку.", state.CarryoverDays, russianDayWord(state.CarryoverDays))
+			current := synvpn.FindTariffForRecord(record.TotalGB, record.LimitHwid)
+			if current != nil && current.ID != tariff.ID {
+				state.CarryoverDays = synvpn.CalculatePurchaseCarryover(
+					state.Kind,
+					record.ExpiryTime,
+					current,
+					tariff,
+					time.Now(),
+				)
+				warning = fmt.Sprintf(
+					"\n\n⚠️ Выбранный тариф не соответствует текущему. Остаток пересчитан: <b>%d %s</b> нового тарифа добавлено к выбранному сроку.",
+					state.CarryoverDays,
+					russianDayWord(state.CarryoverDays),
+				)
 			}
 		}
 	}
