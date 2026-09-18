@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"html"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/mymmrac/telego"
@@ -13,67 +12,41 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
 )
 
-type purchaseKind string
+var purchaseMgr = synvpn.NewPurchaseStore()
 
-const (
-	purchaseCreate purchaseKind = "create"
-	purchaseRenew  purchaseKind = "renew"
-)
-
-type registrationState struct {
-	TgID, UpdatedAt                int64
-	Comment, ClientEmail, TariffID string
-	Kind                           purchaseKind
-	Months, CarryoverDays          int
-}
-
-type registrationStore struct {
-	mu    sync.Mutex
-	items map[int64]registrationState
-}
-
-const registrationTTL = time.Hour
-
-var registrationMgr = &registrationStore{items: make(map[int64]registrationState)}
-
-func (s *registrationStore) set(chatID int64, state registrationState) {
-	s.mu.Lock()
-	s.items[chatID] = state
-	s.mu.Unlock()
-}
-func (s *registrationStore) get(chatID int64) (registrationState, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	state, ok := s.items[chatID]
-	if !ok || time.Since(time.UnixMilli(state.UpdatedAt)) > registrationTTL {
-		delete(s.items, chatID)
-		return registrationState{}, false
-	}
-	return state, true
-}
-func (s *registrationStore) clear(chatID int64) { s.mu.Lock(); delete(s.items, chatID); s.mu.Unlock() }
-
-// startRegistration remains the first-time entry point. Creation and renewal
-// share the tariff, period, summary, and payment flow below.
 func (t *Tgbot) startRegistration(chatID int64, user telego.User) {
-	t.startPurchase(chatID, user, purchaseCreate, "")
+	t.startPurchase(chatID, user, synvpn.PurchaseCreate, "")
 }
 
-func (t *Tgbot) startPurchase(chatID int64, user telego.User, kind purchaseKind, email string) {
-	registrationMgr.set(chatID, registrationState{TgID: user.ID, Comment: telegramUserComment(user), ClientEmail: email, Kind: kind, UpdatedAt: time.Now().UnixMilli()})
+func (t *Tgbot) startPurchase(
+	chatID int64,
+	user telego.User,
+	kind synvpn.PurchaseKind,
+	email string,
+) {
+	purchaseMgr.Set(chatID, synvpn.PurchaseState{
+		TgID:        user.ID,
+		Comment:     telegramUserComment(user),
+		ClientEmail: email,
+		Kind:        kind,
+		UpdatedAt:   time.Now().UnixMilli(),
+	})
+
 	catalog := synvpn.Tariffs()
 	buttons := make([]telego.InlineKeyboardButton, 0, len(catalog)+1)
 	for _, tariff := range catalog {
 		buttons = append(buttons, tu.InlineKeyboardButton(tariffLabel(tariff)).WithCallbackData("subscription_tariff_"+tariff.ID))
 	}
 	buttons = append(buttons, tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel"))
+
 	prompt := "Выберите тариф:"
-	if kind == purchaseRenew {
+	if kind == synvpn.PurchaseRenew {
 		prompt = "Выберите тариф для продления:"
 	}
 	if name := html.EscapeString(user.FirstName); name != "" {
 		prompt = fmt.Sprintf("👇 <i>%s</i>, %s", name, prompt)
 	}
+
 	t.SendMsgToTgbot(chatID, prompt, tu.InlineKeyboardGrid(tu.InlineKeyboardCols(1, buttons...)))
 }
 
@@ -102,7 +75,7 @@ func (t *Tgbot) purchaseTariff(chatID, tgUserID int64, tariffID string) {
 		return
 	}
 	state.TariffID, state.UpdatedAt = tariff.ID, time.Now().UnixMilli()
-	registrationMgr.set(chatID, state)
+	purchaseMgr.Set(chatID, state)
 	periods := synvpn.TariffPeriods()
 	buttons := make([]telego.InlineKeyboardButton, 0, len(periods)+1)
 	for _, period := range periods {
@@ -125,7 +98,7 @@ func (t *Tgbot) purchasePeriod(chatID, tgUserID int64, months int) {
 	state.Months, state.UpdatedAt = months, time.Now().UnixMilli()
 	state.CarryoverDays = 0
 	warning := ""
-	if state.Kind == purchaseRenew {
+	if state.Kind == synvpn.PurchaseRenew {
 		if record, err := t.clientService.GetRecordByEmail(nil, state.ClientEmail); err == nil {
 			if current := synvpn.FindTariffForRecord(record.TotalGB, record.LimitHwid); current != nil && current.ID != tariff.ID {
 				state.CarryoverDays = synvpn.ConvertedTariffDays(record.ExpiryTime, *current, *tariff, time.Now())
@@ -133,9 +106,9 @@ func (t *Tgbot) purchasePeriod(chatID, tgUserID int64, months int) {
 			}
 		}
 	}
-	registrationMgr.set(chatID, state)
+	purchaseMgr.Set(chatID, state)
 	price, action := synvpn.CalculatePrice(*tariff, *period), "Подтвердить регистрацию?"
-	if state.Kind == purchaseRenew {
+	if state.Kind == synvpn.PurchaseRenew {
 		action = "Подтвердить продление?"
 	}
 	keyboard := tu.InlineKeyboard(tu.InlineKeyboardRow(tu.InlineKeyboardButton("✅ Подтвердить").WithCallbackData("subscription_confirm")), tu.InlineKeyboardRow(tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel")))
@@ -150,7 +123,7 @@ func (t *Tgbot) confirmPurchase(chatID, tgUserID int64) {
 	state, ok := t.purchaseState(chatID, tgUserID)
 	if !ok || state.Months <= 0 {
 		t.SendMsgToTgbot(chatID, "Данные подписки заполнены не полностью. Начните заново.")
-		registrationMgr.clear(chatID)
+		purchaseMgr.Clear(chatID)
 		return
 	}
 	tariff, period := synvpn.FindTariff(state.TariffID), synvpn.FindPeriod(state.Months)
@@ -179,9 +152,9 @@ func (t *Tgbot) confirmPurchase(chatID, tgUserID int64) {
 		t.SendMsgToTgbot(chatID, fmt.Sprintf("❌ Не удалось сформировать ссылку на оплату: %v", err))
 		return
 	}
-	registrationMgr.clear(chatID)
+	purchaseMgr.Clear(chatID)
 	action, after := "регистрации", "подписка будет создана автоматически."
-	if state.Kind == purchaseRenew {
+	if state.Kind == synvpn.PurchaseRenew {
 		action, after = "продления", "подписка будет продлена автоматически."
 	}
 
@@ -210,15 +183,15 @@ func (t *Tgbot) confirmPurchase(chatID, tgUserID int64) {
 	)
 }
 
-func (t *Tgbot) purchaseState(chatID, tgUserID int64) (registrationState, bool) {
-	state, ok := registrationMgr.get(chatID)
+func (t *Tgbot) purchaseState(chatID, tgUserID int64) (synvpn.PurchaseState, bool) {
+	state, ok := purchaseMgr.Get(chatID)
 	if !ok {
 		t.SendMsgToTgbot(chatID, "Операция не найдена. Начните заново.")
-		return registrationState{}, false
+		return synvpn.PurchaseState{}, false
 	}
 	if state.TgID != tgUserID {
 		t.SendMsgToTgbot(chatID, "Операция принадлежит другому пользователю.")
-		return registrationState{}, false
+		return synvpn.PurchaseState{}, false
 	}
 	return state, true
 }

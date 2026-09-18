@@ -1,6 +1,7 @@
 package tgbot
 
 import (
+	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
 	"github.com/mymmrac/telego"
 	"github.com/mymmrac/telego/telegoutil"
 )
@@ -27,5 +28,5 @@ func (t *Tgbot) startRenewal(chatID int64, user telego.User, email string) {
 		t.sendCallbackError(chatID)
 		return
 	}
-	t.startPurchase(chatID, user, purchaseRenew, email)
+	t.startPurchase(chatID, user, synvpn.PurchaseRenew, email)
 }
