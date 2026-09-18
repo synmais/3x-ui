@@ -24,8 +24,20 @@ func (t *Tgbot) startOwnRenewal(chatID int64, user telego.User) {
 }
 
 func (t *Tgbot) startRenewal(chatID int64, user telego.User, email string) {
-	if !t.ownsClient(user.ID, email) {
-		t.sendCallbackError(chatID)
+	traffics, err := t.inboundService.GetClientTrafficTgBot(user.ID)
+	if err != nil {
+		t.SendMsgToTgbot(chatID, t.I18nBot("tgbot.answers.errorOperation"))
+		return
+	}
+	owned := false
+	for _, traffic := range traffics {
+		if traffic.Email == email {
+			owned = true
+			break
+		}
+	}
+	if !owned {
+		t.SendMsgToTgbot(chatID, t.I18nBot("tgbot.answers.errorOperation"))
 		return
 	}
 	t.startPurchase(chatID, user, synvpn.PurchaseRenew, email)
