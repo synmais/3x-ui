@@ -36,6 +36,14 @@ func (t *Tgbot) startPurchase(chatID int64, user telego.User, kind synvpn.Purcha
 	t.synvpnFlow().StartPurchase(chatID, user, kind, email)
 }
 
+func (t *Tgbot) startNewPurchase(chatID int64, user telego.User) {
+	t.startPurchase(chatID, user, synvpn.PurchaseCreate, "")
+}
+
+func (t *Tgbot) clearPurchase(chatID int64) {
+	synvpntgbot.ClearPurchase(chatID)
+}
+
 func (t *Tgbot) purchaseTariff(chatID, tgUserID int64, tariffID string) {
 	t.synvpnFlow().PurchaseTariff(chatID, tgUserID, tariffID)
 }

@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
-	synvpntgbot "github.com/mhsanaei/3x-ui/v3/internal/synvpn/tgbot"
 
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
@@ -1122,7 +1120,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		t.startRegistration(chatId, callbackQuery.From)
 
 	case "register_cancel", "subscription_cancel":
-		synvpntgbot.ClearPurchase(chatId)
+		t.clearPurchase(chatId)
 		t.SendMsgToTgbotDeleteAfter(
 			chatId,
 			t.I18nBot("tgbot.messages.cancel"),
@@ -1180,7 +1178,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 	case "client_renew":
 		t.startOwnRenewal(chatId, callbackQuery.From)
 	case "client_add_subscription":
-		t.startPurchase(chatId, callbackQuery.From, synvpn.PurchaseCreate, "")
+		t.startNewPurchase(chatId, callbackQuery.From)
 	case "client_sub_links":
 		// show user's own clients to choose one for sub links
 		tgUserID := callbackQuery.From.ID
