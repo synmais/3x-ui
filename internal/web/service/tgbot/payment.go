@@ -9,7 +9,8 @@ import (
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
-	billingservice "github.com/mhsanaei/3x-ui/v3/internal/web/service/billing"
+
+	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
 )
 
 func (t *Tgbot) CreateClientFromPayment(payment *model.Payment) error {
@@ -20,16 +21,8 @@ func (t *Tgbot) CreateClientFromPayment(payment *model.Payment) error {
 		return fmt.Errorf("payment %s has empty client email", payment.ID)
 	}
 
-	var tariff Tariff
-	found := false
-	for _, candidate := range tariffs {
-		if candidate.ID == payment.TariffID {
-			tariff = candidate
-			found = true
-			break
-		}
-	}
-	if !found {
+	tariff := synvpn.FindTariff(payment.TariffID)
+	if tariff == nil {
 		return fmt.Errorf("tariff not found: %s", payment.TariffID)
 	}
 
@@ -49,9 +42,9 @@ func (t *Tgbot) CreateClientFromPayment(payment *model.Payment) error {
 		for _, inboundID := range inboundIDs {
 			if inboundID == tariff.InboundID {
 				now := time.Now()
-				newExpiry := calculateSubscriptionExpiry(record.ExpiryTime, payment.Months, now)
-				if current := tariffForRecord(record.TotalGB, record.LimitHwid); current != nil && current.ID != tariff.ID {
-					newExpiry = now.AddDate(0, payment.Months, convertedTariffDays(record.ExpiryTime, *current, tariff, now)).UnixMilli()
+				newExpiry := synvpn.CalculateSubscriptionExpiry(record.ExpiryTime, payment.Months, now)
+				if current := synvpn.FindTariffForRecord(record.TotalGB, record.LimitHwid); current != nil && current.ID != tariff.ID {
+					newExpiry = now.AddDate(0, payment.Months, synvpn.ConvertedTariffDays(record.ExpiryTime, *current, *tariff, now)).UnixMilli()
 				}
 				needRestart, err := t.clientService.ResetClientExpiryTimeByEmail(&t.inboundService, payment.ClientEmail, newExpiry)
 				if err != nil {
@@ -136,7 +129,7 @@ func (t *Tgbot) ProcessYooMoneyPayment(payment *model.Payment) error {
 		return err
 	}
 
-	billing := billingservice.BillingService{}
+	billing := synvpn.BillingService{}
 	if _, err := billing.CompletePayment(payment.ID); err != nil {
 		return err
 	}

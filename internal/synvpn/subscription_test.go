@@ -1,4 +1,4 @@
-package tgbot
+package synvpn
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ func TestCalculateSubscriptionExpiry(t *testing.T) {
 	t.Run("active subscription extends from current expiry", func(t *testing.T) {
 		currentExpiry := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
 
-		got := calculateSubscriptionExpiry(
+		got := CalculateSubscriptionExpiry(
 			currentExpiry.UnixMilli(),
 			3,
 			now,
@@ -27,7 +27,7 @@ func TestCalculateSubscriptionExpiry(t *testing.T) {
 	t.Run("expired subscription starts from now", func(t *testing.T) {
 		currentExpiry := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 
-		got := calculateSubscriptionExpiry(
+		got := CalculateSubscriptionExpiry(
 			currentExpiry.UnixMilli(),
 			3,
 			now,
@@ -41,7 +41,7 @@ func TestCalculateSubscriptionExpiry(t *testing.T) {
 	})
 
 	t.Run("zero expiry starts from now", func(t *testing.T) {
-		got := calculateSubscriptionExpiry(0, 1, now)
+		got := CalculateSubscriptionExpiry(0, 1, now)
 
 		want := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC).UnixMilli()
 

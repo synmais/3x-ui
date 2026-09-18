@@ -1,4 +1,4 @@
-package billing
+package synvpn
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service/billing/yoomoney"
+	"github.com/mhsanaei/3x-ui/v3/internal/synvpn/yoomoney"
 )
 
 // BillingService contains payment business logic.

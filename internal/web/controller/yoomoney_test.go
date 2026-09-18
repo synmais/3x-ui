@@ -18,7 +18,7 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 
-	billingservice "github.com/mhsanaei/3x-ui/v3/internal/web/service/billing"
+	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
 )
 
 type testPaymentProcessor struct {
@@ -32,7 +32,7 @@ func (p *testPaymentProcessor) ProcessYooMoneyPayment(
 		return p.err
 	}
 
-	billing := billingservice.BillingService{}
+	billing := synvpn.BillingService{}
 	_, err := billing.CompletePayment(payment.ID)
 	return err
 }

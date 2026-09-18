@@ -1,4 +1,4 @@
-package billing
+package synvpn
 
 import (
 	"crypto/rand"

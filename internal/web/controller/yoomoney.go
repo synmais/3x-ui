@@ -7,8 +7,9 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service/billing"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service/billing/yoomoney"
+
+	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
+	"github.com/mhsanaei/3x-ui/v3/internal/synvpn/yoomoney"
 )
 
 type paymentProcessor interface {
@@ -71,7 +72,7 @@ func (a *YooMoneyController) notification(c *gin.Context) {
 		return
 	}
 
-	billingService := &billing.BillingService{}
+	billingService := &synvpn.BillingService{}
 	payment, err := billingService.ConfirmYooMoneyPayment(notification)
 	if err != nil {
 		c.Status(http.StatusBadRequest)

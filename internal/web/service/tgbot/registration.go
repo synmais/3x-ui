@@ -7,9 +7,10 @@ import (
 	"sync"
 	"time"
 
-	billingservice "github.com/mhsanaei/3x-ui/v3/internal/web/service/billing"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
+
+	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
 )
 
 type purchaseKind string
@@ -60,8 +61,9 @@ func (t *Tgbot) startRegistration(chatID int64, user telego.User) {
 
 func (t *Tgbot) startPurchase(chatID int64, user telego.User, kind purchaseKind, email string) {
 	registrationMgr.set(chatID, registrationState{TgID: user.ID, Comment: telegramUserComment(user), ClientEmail: email, Kind: kind, UpdatedAt: time.Now().UnixMilli()})
-	buttons := make([]telego.InlineKeyboardButton, 0, len(tariffs)+1)
-	for _, tariff := range tariffs {
+	catalog := synvpn.Tariffs()
+	buttons := make([]telego.InlineKeyboardButton, 0, len(catalog)+1)
+	for _, tariff := range catalog {
 		buttons = append(buttons, tu.InlineKeyboardButton(tariffLabel(tariff)).WithCallbackData("subscription_tariff_"+tariff.ID))
 	}
 	buttons = append(buttons, tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel"))
@@ -94,15 +96,16 @@ func (t *Tgbot) purchaseTariff(chatID, tgUserID int64, tariffID string) {
 	if !ok {
 		return
 	}
-	tariff := findTariff(tariffID)
+	tariff := synvpn.FindTariff(tariffID)
 	if tariff == nil {
 		t.SendMsgToTgbot(chatID, "Не удалось определить тариф. Попробуйте ещё раз.")
 		return
 	}
 	state.TariffID, state.UpdatedAt = tariff.ID, time.Now().UnixMilli()
 	registrationMgr.set(chatID, state)
-	buttons := make([]telego.InlineKeyboardButton, 0, len(tariffPeriods)+1)
-	for _, period := range tariffPeriods {
+	periods := synvpn.TariffPeriods()
+	buttons := make([]telego.InlineKeyboardButton, 0, len(periods)+1)
+	for _, period := range periods {
 		buttons = append(buttons, tu.InlineKeyboardButton(periodLabel(*tariff, period)).WithCallbackData(fmt.Sprintf("subscription_period_%d", period.Months)))
 	}
 	buttons = append(buttons, tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel"))
@@ -114,7 +117,7 @@ func (t *Tgbot) purchasePeriod(chatID, tgUserID int64, months int) {
 	if !ok {
 		return
 	}
-	tariff, period := findTariff(state.TariffID), findPeriod(months)
+	tariff, period := synvpn.FindTariff(state.TariffID), synvpn.FindPeriod(months)
 	if tariff == nil || period == nil {
 		t.SendMsgToTgbot(chatID, "Некорректный срок подписки.")
 		return
@@ -124,14 +127,14 @@ func (t *Tgbot) purchasePeriod(chatID, tgUserID int64, months int) {
 	warning := ""
 	if state.Kind == purchaseRenew {
 		if record, err := t.clientService.GetRecordByEmail(nil, state.ClientEmail); err == nil {
-			if current := tariffForRecord(record.TotalGB, record.LimitHwid); current != nil && current.ID != tariff.ID {
-				state.CarryoverDays = convertedTariffDays(record.ExpiryTime, *current, *tariff, time.Now())
+			if current := synvpn.FindTariffForRecord(record.TotalGB, record.LimitHwid); current != nil && current.ID != tariff.ID {
+				state.CarryoverDays = synvpn.ConvertedTariffDays(record.ExpiryTime, *current, *tariff, time.Now())
 				warning = fmt.Sprintf("\n\n⚠️ Выбранный тариф не соответствует текущему. Остаток пересчитан: <b>%d %s</b> нового тарифа добавлено к выбранному сроку.", state.CarryoverDays, russianDayWord(state.CarryoverDays))
 			}
 		}
 	}
 	registrationMgr.set(chatID, state)
-	price, action := tariff.Price(*period), "Подтвердить регистрацию?"
+	price, action := synvpn.CalculatePrice(*tariff, *period), "Подтвердить регистрацию?"
 	if state.Kind == purchaseRenew {
 		action = "Подтвердить продление?"
 	}
@@ -150,7 +153,7 @@ func (t *Tgbot) confirmPurchase(chatID, tgUserID int64) {
 		registrationMgr.clear(chatID)
 		return
 	}
-	tariff, period := findTariff(state.TariffID), findPeriod(state.Months)
+	tariff, period := synvpn.FindTariff(state.TariffID), synvpn.FindPeriod(state.Months)
 	if tariff == nil || period == nil {
 		t.SendMsgToTgbot(chatID, "Выбранный тариф или срок не найден.")
 		return
@@ -164,14 +167,14 @@ func (t *Tgbot) confirmPurchase(chatID, tgUserID int64) {
 	if clientEmail == "" {
 		clientEmail = t.randomLowerAndNum(8)
 	}
-	price := tariff.Price(*period)
-	billing := billingservice.BillingService{}
+	price := synvpn.CalculatePrice(*tariff, *period)
+	billing := synvpn.BillingService{}
 	payment, err := billing.CreatePayment(state.TgID, clientEmail, state.Comment, tariff.ID, period.Months, price*100, "yoomoney", time.Now().Add(30*time.Minute))
 	if err != nil {
 		t.SendMsgToTgbot(chatID, fmt.Sprintf("❌ Не удалось создать платёж: %v", err))
 		return
 	}
-	paymentURL, err := billingservice.YooMoneyPaymentURL(wallet, payment, "")
+	paymentURL, err := synvpn.YooMoneyPaymentURL(wallet, payment, "")
 	if err != nil {
 		t.SendMsgToTgbot(chatID, fmt.Sprintf("❌ Не удалось сформировать ссылку на оплату: %v", err))
 		return
@@ -219,30 +222,14 @@ func (t *Tgbot) purchaseState(chatID, tgUserID int64) (registrationState, bool) 
 	}
 	return state, true
 }
-func findTariff(id string) *Tariff {
-	for i := range tariffs {
-		if tariffs[i].ID == id {
-			return &tariffs[i]
-		}
-	}
-	return nil
-}
-func findPeriod(months int) *TariffPeriod {
-	for i := range tariffPeriods {
-		if tariffPeriods[i].Months == months {
-			return &tariffPeriods[i]
-		}
-	}
-	return nil
-}
-func tariffLabel(tariff Tariff) string {
+func tariffLabel(tariff synvpn.Tariff) string {
 	return fmt.Sprintf("%d ГБ · %d %s · %d ₽/мес", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.MonthlyPrice)
 }
-func tariffSummary(tariff Tariff) string {
+func tariffSummary(tariff synvpn.Tariff) string {
 	return fmt.Sprintf("📊 %d ГБ\n📱 %d %s\n💰 %d ₽/мес.", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.MonthlyPrice)
 }
-func periodLabel(tariff Tariff, period TariffPeriod) string {
-	price := tariff.Price(period)
+func periodLabel(tariff synvpn.Tariff, period synvpn.TariffPeriod) string {
+	price := synvpn.CalculatePrice(tariff, period)
 	if period.Months == 1 {
 		return fmt.Sprintf("1 месяц · %d ₽", price)
 	}
@@ -273,25 +260,4 @@ func russianDayWord(count int) string {
 	default:
 		return "дней"
 	}
-}
-
-func tariffForRecord(totalGB int64, limitHWID int) *Tariff {
-	for i := range tariffs {
-		if tariffs[i].TotalGB*1024*1024*1024 == totalGB && tariffs[i].LimitHWID == limitHWID {
-			return &tariffs[i]
-		}
-	}
-	return nil
-}
-
-// convertedTariffDays converts remaining subscription days from the old tariff
-// into an equivalent number of days at the new tariff.
-// A month is priced as 30 days so the rule is predictable to subscribers.
-func convertedTariffDays(expiry int64, oldTariff, newTariff Tariff, now time.Time) int {
-	if expiry <= now.UnixMilli() || oldTariff.MonthlyPrice <= 0 || newTariff.MonthlyPrice <= 0 {
-		return 0
-	}
-	remaining := time.UnixMilli(expiry).Sub(now)
-	days := int((remaining + 24*time.Hour - 1) / (24 * time.Hour))
-	return days * int(oldTariff.MonthlyPrice) / int(newTariff.MonthlyPrice)
 }
