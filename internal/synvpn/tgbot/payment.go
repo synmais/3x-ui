@@ -7,7 +7,7 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
 )
 
-func (t *Tgbot) ProcessYooMoneyPayment(payment *model.Payment) error {
+func (f *Flow) ProcessYooMoneyPayment(payment *model.Payment) error {
 	if payment == nil {
 		return fmt.Errorf("payment is nil")
 	}
@@ -22,13 +22,7 @@ func (t *Tgbot) ProcessYooMoneyPayment(payment *model.Payment) error {
 		)
 	}
 
-	fulfillment := synvpn.PaymentFulfillmentService{
-		ClientService:  t.clientService,
-		InboundService: t.inboundService,
-		XrayService:    t.xrayService,
-	}
-
-	if err := fulfillment.CreateClientFromPayment(payment); err != nil {
+	if err := f.FulfillPayment(payment); err != nil {
 		return err
 	}
 
@@ -47,8 +41,8 @@ func (t *Tgbot) ProcessYooMoneyPayment(payment *model.Payment) error {
 		"в настройках приложения.\n\n" +
 		"🔗 <b>Ниже — ссылка на вашу подписку.</b>"
 
-	t.SendMsgToTgbot(payment.TgID, message)
-	t.sendClientSubLinks(payment.TgID, payment.ClientEmail)
+	f.SendMessage(payment.TgID, message)
+	f.SendSubscriptionLinks(payment.TgID, payment.ClientEmail)
 
 	return nil
 }

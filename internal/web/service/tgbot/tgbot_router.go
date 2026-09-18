@@ -11,6 +11,7 @@ import (
 
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
+	synvpntgbot "github.com/mhsanaei/3x-ui/v3/internal/synvpn/tgbot"
 
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
@@ -1121,7 +1122,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		t.startRegistration(chatId, callbackQuery.From)
 
 	case "register_cancel", "subscription_cancel":
-		purchaseMgr.Clear(chatId)
+		synvpntgbot.ClearPurchase(chatId)
 		t.SendMsgToTgbotDeleteAfter(
 			chatId,
 			t.I18nBot("tgbot.messages.cancel"),
