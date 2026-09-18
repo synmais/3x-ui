@@ -140,16 +140,21 @@ func (t *Tgbot) confirmPurchase(chatID, tgUserID int64) {
 	if clientEmail == "" {
 		clientEmail = t.randomLowerAndNum(8)
 	}
+
 	price := synvpn.CalculatePrice(*tariff, *period)
 	billing := synvpn.BillingService{}
-	payment, err := billing.CreatePayment(state.TgID, clientEmail, state.Comment, tariff.ID, period.Months, price*100, "yoomoney", time.Now().Add(30*time.Minute))
+	paymentURL, err := billing.CreateYooMoneyPayment(
+		state.TgID,
+		clientEmail,
+		state.Comment,
+		tariff.ID,
+		period.Months,
+		price*100,
+		time.Now().Add(30*time.Minute),
+		wallet,
+	)
 	if err != nil {
 		t.SendMsgToTgbot(chatID, fmt.Sprintf("❌ Не удалось создать платёж: %v", err))
-		return
-	}
-	paymentURL, err := synvpn.YooMoneyPaymentURL(wallet, payment, "")
-	if err != nil {
-		t.SendMsgToTgbot(chatID, fmt.Sprintf("❌ Не удалось сформировать ссылку на оплату: %v", err))
 		return
 	}
 	purchaseMgr.Clear(chatID)

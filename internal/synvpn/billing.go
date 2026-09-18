@@ -292,3 +292,36 @@ func (s *BillingService) CompletePayment(
 
 	return &payment, nil
 }
+
+// CreateYooMoneyPayment creates a pending YooMoney payment and returns its URL.
+func (s *BillingService) CreateYooMoneyPayment(
+	tgID int64,
+	clientEmail string,
+	comment string,
+	tariffID string,
+	months int,
+	amountKopecks int64,
+	expiresAt time.Time,
+	wallet string,
+) (string, error) {
+	payment, err := s.CreatePayment(
+		tgID,
+		clientEmail,
+		comment,
+		tariffID,
+		months,
+		amountKopecks,
+		"yoomoney",
+		expiresAt,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	paymentURL, err := YooMoneyPaymentURL(wallet, payment, "")
+	if err != nil {
+		return "", err
+	}
+
+	return paymentURL, nil
+}
