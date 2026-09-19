@@ -39,8 +39,9 @@ type updateSettingForm struct {
 	ClearTgBotToken                 bool   `json:"clearTgBotToken" form:"clearTgBotToken"`
 	ClearLdapPassword               bool   `json:"clearLdapPassword" form:"clearLdapPassword"`
 	ClearSmtpPassword               bool   `json:"clearSmtpPassword" form:"clearSmtpPassword"`
-	ClearYooMoneyNotificationSecret bool   `json:"clearYooMoneyNotificationSecret" form:"clearYooMoneyNotificationSecret"`
 	ClearDiscordBotToken            bool   `json:"clearDiscordBotToken" form:"clearDiscordBotToken"`
+	ClearYooMoneyNotificationSecret bool   `json:"clearYooMoneyNotificationSecret" form:"clearYooMoneyNotificationSecret"`
+	ClearYooMoneyClientSecret       bool   `json:"clearYooMoneyClientSecret" form:"clearYooMoneyClientSecret"`
 }
 
 type validateRegexForm struct {
@@ -155,8 +156,9 @@ func (a *SettingController) updateSetting(c *gin.Context) {
 		TgBotToken:                 form.ClearTgBotToken,
 		LdapPassword:               form.ClearLdapPassword,
 		SmtpPassword:               form.ClearSmtpPassword,
-		YooMoneyNotificationSecret: form.ClearYooMoneyNotificationSecret,
 		DiscordBotToken:            form.ClearDiscordBotToken,
+		YooMoneyClientSecret:       form.ClearYooMoneyClientSecret,
+		YooMoneyNotificationSecret: form.ClearYooMoneyNotificationSecret,
 	})
 	if err == nil && twoFactorErr == nil && !oldTwoFactor && allSetting.TwoFactorEnable {
 		if bumpErr := a.userService.BumpLoginEpoch(); bumpErr != nil {
