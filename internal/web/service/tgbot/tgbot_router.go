@@ -1041,6 +1041,8 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 	case "client_commands":
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.commands"))
 		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.commands.helpClientCommands"))
+	case "client_devices":
+		t.showOwnDevices(chatId, callbackQuery.From.ID)
 	case "client_renew":
 		t.startOwnRenewal(chatId, callbackQuery.From)
 	case "client_add_subscription":
@@ -1411,6 +1413,9 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			t.getClientUsage(chatId, callbackQuery.From.ID, after)
 			return
 		}
+		if t.handleDeviceCallback(chatId, callbackQuery.From.ID, callbackQuery.Data) {
+			return
+		}
 
 		action, email, ok := splitClientLinkCallback(callbackQuery.Data)
 		if !ok {
@@ -1447,7 +1452,7 @@ func isClientSelfCallback(data string) bool {
 	case "register_user", "register_cancel", "subscription_cancel", "subscription_confirm", "client_renew", "client_add_subscription":
 		return true
 	case "client_traffic", "client_commands", "client_sub_links",
-		"client_individual_links", "client_qr_links":
+		"client_individual_links", "client_qr_links", "client_devices":
 		return true
 	case "register_confirm":
 		return true
@@ -1459,6 +1464,10 @@ func isClientSelfCallback(data string) bool {
 		return true
 	}
 	return strings.HasPrefix(data, "client_traffic ") ||
+		strings.HasPrefix(data, "client_devices ") ||
+		strings.HasPrefix(data, "client_device ") ||
+		strings.HasPrefix(data, "client_device_remove ") ||
+		strings.HasPrefix(data, "client_device_delete ") ||
 		strings.HasPrefix(data, "client_renew ") ||
 		strings.HasPrefix(data, "client_sub_links ") ||
 		strings.HasPrefix(data, "client_individual_links ") ||

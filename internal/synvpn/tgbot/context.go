@@ -30,4 +30,7 @@ type Flow struct {
 	RandomClientEmail      func(int) string
 	ShowRegistrationPrompt func(int64)
 	SendSubscriptionLinks  func(int64, string)
+	ListDevices            func(string) ([]Device, int, error)
+	DeleteDeviceByEmail    func(string, int) error
+	EncodeCallback         func(string) string
 }

@@ -28,6 +28,38 @@ func (t *Tgbot) synvpnFlow() *synvpntgbot.Flow {
 		RandomClientEmail:      t.randomLowerAndNum,
 		ShowRegistrationPrompt: t.showRegistrationPrompt,
 		SendSubscriptionLinks:  t.sendClientSubLinks,
+		ListDevices: func(email string) ([]synvpntgbot.Device, int, error) {
+			record, err := t.clientService.GetRecordByEmail(nil, email)
+			if err != nil {
+				return nil, 0, err
+			}
+			hwids, err := t.clientService.ListClientHwids(email)
+			if err != nil {
+				return nil, 0, err
+			}
+			devices := make([]synvpntgbot.Device, 0, len(hwids))
+			for _, hwid := range hwids {
+				devices = append(devices, synvpntgbot.Device{
+					ID:          hwid.Id,
+					Fingerprint: hwid.Fingerprint,
+					FirstSeen:   hwid.FirstSeen,
+					LastSeen:    hwid.LastSeen,
+					UserAgent:   hwid.UserAgent,
+					DeviceOS:    hwid.DeviceOS,
+					OsVersion:   hwid.OsVersion,
+					DeviceModel: hwid.DeviceModel,
+				})
+			}
+			limit := record.LimitHwid
+			if status, found, statusErr := t.clientService.HwidSlotStatusForSubID(record.SubID); statusErr != nil {
+				return nil, 0, statusErr
+			} else if found {
+				limit = status.Limit
+			}
+			return devices, limit, nil
+		},
+		DeleteDeviceByEmail: t.clientService.DeleteClientHwid,
+		EncodeCallback:      t.encodeQuery,
 	}
 }
 
@@ -87,6 +119,40 @@ func (t *Tgbot) confirmPurchase(chatID, tgUserID int64) {
 
 func (t *Tgbot) startOwnRenewal(chatID int64, user telego.User) {
 	t.synvpnFlow().StartOwnRenewal(chatID, user)
+}
+
+func (t *Tgbot) showOwnDevices(chatID, tgUserID int64) {
+	t.synvpnFlow().ShowOwnDevices(chatID, tgUserID)
+}
+
+func (t *Tgbot) handleDeviceCallback(chatID, tgUserID int64, data string) bool {
+	parts := strings.Fields(data)
+	if len(parts) == 0 || !strings.HasPrefix(parts[0], "client_device") {
+		return false
+	}
+	if parts[0] == "client_devices" && len(parts) == 2 {
+		t.synvpnFlow().ShowDevices(chatID, tgUserID, parts[1])
+		return true
+	}
+	if (parts[0] == "client_device" || parts[0] == "client_device_remove" || parts[0] == "client_device_delete") && len(parts) == 3 {
+		id, err := strconv.Atoi(parts[2])
+		if err != nil {
+			t.SendMsgToTgbot(chatID, t.I18nBot("tgbot.answers.errorOperation"))
+			return true
+		}
+		flow := t.synvpnFlow()
+		switch parts[0] {
+		case "client_device":
+			flow.ShowDevice(chatID, tgUserID, parts[1], id)
+		case "client_device_remove":
+			flow.ConfirmDeviceDelete(chatID, tgUserID, parts[1], id)
+		case "client_device_delete":
+			flow.DeleteDevice(chatID, tgUserID, parts[1], id)
+		}
+		return true
+	}
+	t.SendMsgToTgbot(chatID, t.I18nBot("tgbot.answers.errorOperation"))
+	return true
 }
 
 func (t *Tgbot) startRenewal(chatID int64, user telego.User, email string) {
