@@ -1,6 +1,8 @@
 package synvpn
 
 import (
+	"strings"
+	"github.com/google/uuid"
 	"errors"
 	"fmt"
 	"time"
@@ -110,6 +112,8 @@ func (s *PaymentFulfillmentService) CreateClientFromPayment(payment *model.Payme
 		SubID:      clientSubID,
 		Comment:         payment.Comment,
 		Reset:           0,
+		Password:        strings.ReplaceAll(uuid.NewString(), "-", ""),
+		Auth:            strings.ReplaceAll(uuid.NewString(), "-", ""),
 		TgID:            payment.TgID,
 		TrafficReset:    "monthly",
 		TrafficResetDay: DefaultTrafficResetDay,
