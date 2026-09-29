@@ -126,7 +126,7 @@ func (s *PaymentFulfillmentService) CreateClientFromPayment(payment *model.Payme
 		Enable:          true,
 		LimitIP:         0,
 		TotalGB:         tariff.TotalGB * 1024 * 1024 * 1024,
-		ExpiryTime:      now.AddDate(0, payment.Months, 0).UnixMilli(),
+		ExpiryTime:      CalculateSubscriptionExpiry(0, payment.Months, now),
 		SubID:           clientSubID,
 		Comment:         payment.Comment,
 		Password:        strings.ReplaceAll(uuid.NewString(), "-", ""),

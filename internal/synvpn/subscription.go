@@ -9,7 +9,35 @@ func CalculateSubscriptionExpiry(currentExpiry int64, months int, now time.Time)
 		base = time.UnixMilli(currentExpiry)
 	}
 
-	return base.AddDate(0, months, 0).UnixMilli()
+	return addCalendarMonthsClamped(base, months).UnixMilli()
+}
+
+func addCalendarMonthsClamped(from time.Time, months int) time.Time {
+	year, month, day := from.Date()
+	target := time.Date(year, month, 1, from.Hour(), from.Minute(), from.Second(), from.Nanosecond(), from.Location()).
+		AddDate(0, months, 0)
+
+	lastDay := time.Date(
+		target.Year(),
+		target.Month()+1,
+		0,
+		0, 0, 0, 0,
+		target.Location(),
+	).Day()
+	if day > lastDay {
+		day = lastDay
+	}
+
+	return time.Date(
+		target.Year(),
+		target.Month(),
+		day,
+		from.Hour(),
+		from.Minute(),
+		from.Second(),
+		from.Nanosecond(),
+		from.Location(),
+	)
 }
 
 func FindTariffForRecord(totalGB int64, limitHWID int) *Tariff {
