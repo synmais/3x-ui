@@ -5,8 +5,7 @@ type Tariff struct {
 	InboundIDs   []int
 	TotalGB      int64
 	LimitHWID    int
-	MonthlyPrice    int64
-	TrafficResetDay int
+	MonthlyPrice int64
 }
 
 type TariffPeriod struct {
@@ -23,32 +22,28 @@ var tariffs = []Tariff{
 		InboundIDs:   []int{DefaultRegistrationInboundID},
 		TotalGB:      30,
 		LimitHWID:    1,
-		MonthlyPrice:    50,
-		TrafficResetDay: 1,
+		MonthlyPrice: 50,
 	},
 	{
 		ID:           "50gb_3",
 		InboundIDs:   []int{DefaultRegistrationInboundID},
 		TotalGB:      50,
 		LimitHWID:    3,
-		MonthlyPrice:    100,
-		TrafficResetDay: 1,
+		MonthlyPrice: 100,
 	},
 	{
 		ID:           "100gb_5",
 		InboundIDs:   []int{DefaultRegistrationInboundID},
 		TotalGB:      100,
 		LimitHWID:    5,
-		MonthlyPrice:    200,
-		TrafficResetDay: 1,
+		MonthlyPrice: 200,
 	},
 	{
 		ID:           "300gb_10",
 		InboundIDs:   []int{DefaultRegistrationInboundID},
 		TotalGB:      300,
 		LimitHWID:    10,
-		MonthlyPrice:    300,
-		TrafficResetDay: 1,
+		MonthlyPrice: 300,
 	},
 }
 
