@@ -160,14 +160,3 @@ func containsInt(values []int, want int) bool {
 	return false
 }
 
-func uniqueInts(values []int) []int {
-	seen := make(map[int]struct{}, len(values))
-	out := make([]int, 0, len(values))
-	for _, value := range values {
-		if value <= 0 { continue }
-		if _, ok := seen[value]; ok { continue }
-		seen[value] = struct{}{}
-		out = append(out, value)
-	}
-	return out
-}
