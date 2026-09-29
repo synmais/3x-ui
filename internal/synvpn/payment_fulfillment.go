@@ -132,7 +132,7 @@ func (s *PaymentFulfillmentService) CreateClientFromPayment(payment *model.Payme
 		Auth:            strings.ReplaceAll(uuid.NewString(), "-", ""),
 		TgID:            payment.TgID,
 		TrafficReset:    "monthly",
-		TrafficResetDay: tariff.TrafficResetDay,
+		TrafficResetDay: time.Now().Day(),
 	}
 
 	needRestart, err := s.ClientService.Create(
