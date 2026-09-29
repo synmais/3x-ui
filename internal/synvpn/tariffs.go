@@ -5,7 +5,8 @@ type Tariff struct {
 	InboundIDs   []int
 	TotalGB      int64
 	LimitHWID    int
-	MonthlyPrice int64
+	MonthlyPrice    int64
+	TrafficResetDay int
 }
 
 type TariffPeriod struct {
@@ -15,10 +16,6 @@ type TariffPeriod struct {
 
 const DefaultRegistrationInboundID = 1
 
-// DefaultTrafficResetDay is the calendar day when a client's monthly traffic
-// quota is reset. The panel already supports per-client monthly reset schedules;
-// the Telegram bot enables that schedule for every newly created client.
-const DefaultTrafficResetDay = 1
 
 var tariffs = []Tariff{
 	{
@@ -26,28 +23,32 @@ var tariffs = []Tariff{
 		InboundIDs:   []int{DefaultRegistrationInboundID},
 		TotalGB:      30,
 		LimitHWID:    1,
-		MonthlyPrice: 50,
+		MonthlyPrice:    50,
+		TrafficResetDay: 1,
 	},
 	{
 		ID:           "50gb_3",
 		InboundIDs:   []int{DefaultRegistrationInboundID},
 		TotalGB:      50,
 		LimitHWID:    3,
-		MonthlyPrice: 100,
+		MonthlyPrice:    100,
+		TrafficResetDay: 1,
 	},
 	{
 		ID:           "100gb_5",
 		InboundIDs:   []int{DefaultRegistrationInboundID},
 		TotalGB:      100,
 		LimitHWID:    5,
-		MonthlyPrice: 200,
+		MonthlyPrice:    200,
+		TrafficResetDay: 1,
 	},
 	{
 		ID:           "300gb_10",
 		InboundIDs:   []int{DefaultRegistrationInboundID},
 		TotalGB:      300,
 		LimitHWID:    10,
-		MonthlyPrice: 300,
+		MonthlyPrice:    300,
+		TrafficResetDay: 1,
 	},
 }
 
