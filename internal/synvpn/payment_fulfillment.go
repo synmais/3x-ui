@@ -47,7 +47,7 @@ func (s *PaymentFulfillmentService) CreateClientFromPayment(payment *model.Payme
 		}
 
 		for _, inboundID := range inboundIDs {
-			if inboundID == tariff.InboundID {
+			if containsInt(tariff.InboundIDs, inboundID) {
 				now := time.Now()
 				newExpiry := CalculateSubscriptionExpiry(record.ExpiryTime, payment.Months, now)
 
@@ -108,16 +108,18 @@ func (s *PaymentFulfillmentService) CreateClientFromPayment(payment *model.Payme
 		TotalGB:    tariff.TotalGB * 1024 * 1024 * 1024,
 		ExpiryTime: time.Now().AddDate(0, payment.Months, 0).UnixMilli(),
 		SubID:      clientSubID,
-		Comment:    payment.Comment,
-		Reset:      0,
-		TgID:       payment.TgID,
+		Comment:         payment.Comment,
+		Reset:           0,
+		TgID:            payment.TgID,
+		TrafficReset:    "monthly",
+		TrafficResetDay: DefaultTrafficResetDay,
 	}
 
 	needRestart, err := s.ClientService.Create(
 		&s.InboundService,
 		&service.ClientCreatePayload{
 			Client:     client,
-			InboundIds: []int{tariff.InboundID},
+			InboundIds: tariff.InboundIDs,
 			LimitHwid:  tariff.LimitHWID,
 		},
 	)
@@ -129,4 +131,24 @@ func (s *PaymentFulfillmentService) CreateClientFromPayment(payment *model.Payme
 	}
 
 	return nil
+}
+
+
+func containsInt(values []int, want int) bool {
+	for _, value := range values {
+		if value == want { return true }
+	}
+	return false
+}
+
+func uniqueInts(values []int) []int {
+	seen := make(map[int]struct{}, len(values))
+	out := make([]int, 0, len(values))
+	for _, value := range values {
+		if value <= 0 { continue }
+		if _, ok := seen[value]; ok { continue }
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
