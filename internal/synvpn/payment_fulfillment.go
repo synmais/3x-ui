@@ -119,20 +119,24 @@ func (s *PaymentFulfillmentService) CreateClientFromPayment(payment *model.Payme
 		clientSubID = record.SubID
 	}
 
+	now := time.Now()
 	client := model.Client{
-		Email:      payment.ClientEmail,
-		Enable:     true,
-		LimitIP:    0,
-		TotalGB:    tariff.TotalGB * 1024 * 1024 * 1024,
-		ExpiryTime: time.Now().AddDate(0, payment.Months, 0).UnixMilli(),
-		SubID:      clientSubID,
+		ID:              uuid.NewString(),
+		Email:           payment.ClientEmail,
+		Enable:          true,
+		LimitIP:         0,
+		TotalGB:         tariff.TotalGB * 1024 * 1024 * 1024,
+		ExpiryTime:      now.AddDate(0, payment.Months, 0).UnixMilli(),
+		SubID:           clientSubID,
 		Comment:         payment.Comment,
-		Reset:           0,
 		Password:        strings.ReplaceAll(uuid.NewString(), "-", ""),
 		Auth:            strings.ReplaceAll(uuid.NewString(), "-", ""),
+		Secret:          model.GenerateFakeTLSSecret("www.cloudflare.com"),
+		Flow:            "xtls-rprx-vision",
+		Reset:           0,
 		TgID:            payment.TgID,
 		TrafficReset:    "monthly",
-		TrafficResetDay: time.Now().Day(),
+		TrafficResetDay: now.Day(),
 	}
 
 	needRestart, err := s.ClientService.Create(

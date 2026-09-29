@@ -15,7 +15,6 @@ type TariffPeriod struct {
 
 const DefaultRegistrationInboundID = 1
 
-
 var tariffs = []Tariff{
 	{
 		ID:           "30gb_1",
