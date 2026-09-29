@@ -92,6 +92,21 @@ func (s *PaymentFulfillmentService) CreateClientFromPayment(payment *model.Payme
 					return err
 				}
 
+				// A client created under an older/single-inbound tariff may already
+				// have one of the new tariff inbounds. Attach the missing ones without
+				// duplicating existing attachments.
+				attachRestart, err := s.ClientService.AttachByEmail(
+					&s.InboundService,
+					payment.ClientEmail,
+					tariff.InboundIDs,
+				)
+				if err != nil {
+					return err
+				}
+				if attachRestart {
+					s.XrayService.SetToNeedRestart()
+				}
+
 				return nil
 			}
 		}
