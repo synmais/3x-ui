@@ -39,8 +39,14 @@ func (s *BillingService) CreatePayment(
 	if tariffID == "" {
 		return nil, fmt.Errorf("tariff ID is required")
 	}
-	if months <= 0 {
-		return nil, fmt.Errorf("months must be positive")
+	if months < 0 {
+		return nil, fmt.Errorf("months must not be negative")
+	}
+	if months == 0 {
+		tariff := FindTariff(tariffID)
+		if tariff == nil || !IsDayTariff(*tariff) {
+			return nil, fmt.Errorf("months must be positive")
+		}
 	}
 	if amountKopecks <= 0 {
 		return nil, fmt.Errorf("payment amount must be positive")

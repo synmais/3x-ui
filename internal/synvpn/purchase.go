@@ -17,6 +17,7 @@ type PurchaseState struct {
 	Comment, ClientEmail, TariffID string
 	Kind                           PurchaseKind
 	Months, CarryoverDays          int
+	Promo                          bool
 }
 
 type PurchaseStore struct {

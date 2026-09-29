@@ -6,6 +6,8 @@ type Tariff struct {
 	TotalGB      int64
 	LimitHWID    int
 	MonthlyPrice int64
+	Price        int64
+	Days         int
 }
 
 type TariffPeriod struct {
@@ -13,33 +15,59 @@ type TariffPeriod struct {
 	Discount int
 }
 
-const DefaultRegistrationInboundID = 1
+const (
+	DefaultRegistrationInboundID = 1
+	RegistrationPromoTariffID    = "registration_1rub"
+	LoyaltyTariffID              = "loyalty_300gb_10"
+)
+
+var DefaultRegistrationInboundIDs = []int{1, 4}
+
+var registrationPromoTariff = Tariff{
+	ID:         RegistrationPromoTariffID,
+	InboundIDs: DefaultRegistrationInboundIDs,
+	TotalGB:    30,
+	LimitHWID:  3,
+	Price:      1,
+	Days:       3,
+}
+
+var loyaltyTariff = Tariff{
+	ID:           LoyaltyTariffID,
+	InboundIDs:   DefaultRegistrationInboundIDs,
+	TotalGB:      300,
+	LimitHWID:    10,
+	MonthlyPrice: 200,
+}
+
+// Add loyalty user emails here in lowercase.
+var loyaltyTariffUsers = map[string]struct{}{}
 
 var tariffs = []Tariff{
 	{
 		ID:           "30gb_1",
-		InboundIDs:   []int{DefaultRegistrationInboundID},
+		InboundIDs:   DefaultRegistrationInboundIDs,
 		TotalGB:      30,
 		LimitHWID:    1,
 		MonthlyPrice: 50,
 	},
 	{
 		ID:           "50gb_3",
-		InboundIDs:   []int{DefaultRegistrationInboundID},
+		InboundIDs:   DefaultRegistrationInboundIDs,
 		TotalGB:      50,
 		LimitHWID:    3,
 		MonthlyPrice: 100,
 	},
 	{
 		ID:           "100gb_5",
-		InboundIDs:   []int{DefaultRegistrationInboundID},
+		InboundIDs:   DefaultRegistrationInboundIDs,
 		TotalGB:      100,
 		LimitHWID:    5,
 		MonthlyPrice: 200,
 	},
 	{
 		ID:           "300gb_10",
-		InboundIDs:   []int{DefaultRegistrationInboundID},
+		InboundIDs:   DefaultRegistrationInboundIDs,
 		TotalGB:      300,
 		LimitHWID:    10,
 		MonthlyPrice: 300,

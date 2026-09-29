@@ -19,7 +19,33 @@ func ClearPurchase(chatID int64) {
 }
 
 func (f *Flow) StartRegistration(chatID int64, user telego.User) {
-	f.StartPurchase(chatID, user, synvpn.PurchaseCreate, "")
+	purchaseMgr.Set(chatID, synvpn.PurchaseState{
+		TgID:        user.ID,
+		Comment:     telegramUserComment(user),
+		Kind:        synvpn.PurchaseCreate,
+		TariffID:    synvpn.RegistrationPromoTariffID,
+		Promo:       true,
+		UpdatedAt:   time.Now().UnixMilli(),
+	})
+	f.showRegistrationPromo(chatID, user)
+}
+
+func (f *Flow) showRegistrationPromo(chatID int64, user telego.User) {
+	tariff := synvpn.RegistrationPromoTariff()
+	keyboard := tu.InlineKeyboard(
+		tu.InlineKeyboardRow(
+			tu.InlineKeyboardButton("🎁 Получить за 1 ₽").WithCallbackData("subscription_confirm"),
+		),
+		tu.InlineKeyboardRow(
+			tu.InlineKeyboardButton(f.Translate("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel"),
+		),
+	)
+	prompt := "🎁 <b>Пробный тариф</b>\n\n" +
+		fmt.Sprintf("📊 %d ГБ\n📱 %d %s\n📅 %d дня\n💰 <b>%d ₽</b>", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.Days, tariff.Price)
+	if name := html.EscapeString(user.FirstName); name != "" {
+		prompt = fmt.Sprintf("👇 <i>%s</i>, %s", name, prompt)
+	}
+	f.SendMessage(chatID, prompt, keyboard)
 }
 
 func (f *Flow) StartPurchase(
@@ -36,7 +62,7 @@ func (f *Flow) StartPurchase(
 		UpdatedAt:   time.Now().UnixMilli(),
 	})
 
-	catalog := synvpn.Tariffs()
+	catalog := synvpn.TariffsForEmail(email)
 	buttons := make([]telego.InlineKeyboardButton, 0, len(catalog)+1)
 	for _, tariff := range catalog {
 		buttons = append(buttons, tu.InlineKeyboardButton(tariffLabel(tariff)).WithCallbackData("subscription_tariff_"+tariff.ID))
@@ -78,6 +104,10 @@ func (f *Flow) PurchaseTariff(chatID, tgUserID int64, tariffID string) {
 		f.SendMessage(chatID, "Не удалось определить тариф. Попробуйте ещё раз.")
 		return
 	}
+	if tariff.ID == synvpn.LoyaltyTariffID && !synvpn.IsLoyaltyTariffUser(state.ClientEmail) {
+		f.SendMessage(chatID, "Этот тариф недоступен для выбранного пользователя.")
+		return
+	}
 	state.TariffID, state.UpdatedAt = tariff.ID, time.Now().UnixMilli()
 	purchaseMgr.Set(chatID, state)
 	periods := synvpn.TariffPeriods()
@@ -100,6 +130,7 @@ func (f *Flow) PurchasePeriod(chatID, tgUserID int64, months int) {
 		return
 	}
 	state.Months, state.UpdatedAt = months, time.Now().UnixMilli()
+	state.Promo = false
 	state.CarryoverDays = 0
 	warning := ""
 	if state.Kind == synvpn.PurchaseRenew {
@@ -136,34 +167,65 @@ func (f *Flow) PurchasePeriod(chatID, tgUserID int64, months int) {
 
 func (f *Flow) ConfirmPurchase(chatID, tgUserID int64) {
 	state, ok := f.purchaseState(chatID, tgUserID)
-	if !ok || state.Months <= 0 {
+	if !ok || (!state.Promo && state.Months <= 0) {
 		f.SendMessage(chatID, "Данные подписки заполнены не полностью. Начните заново.")
 		purchaseMgr.Clear(chatID)
 		return
 	}
-	tariff, period := synvpn.FindTariff(state.TariffID), synvpn.FindPeriod(state.Months)
-	if tariff == nil || period == nil {
-		f.SendMessage(chatID, "Выбранный тариф или срок не найден.")
+
+	tariff := synvpn.FindTariff(state.TariffID)
+	if tariff == nil {
+		f.SendMessage(chatID, "Выбранный тариф не найден.")
 		return
 	}
+	if state.Promo && tariff.ID != synvpn.RegistrationPromoTariffID {
+		f.SendMessage(chatID, "Промо-тариф не найден.")
+		return
+	}
+
 	wallet, err := f.SettingService.GetYooMoneyWallet()
 	if err != nil || wallet == "" {
 		f.SendMessage(chatID, "❌ Оплата сейчас недоступна. Попробуйте позже.")
 		return
 	}
+
 	clientEmail := state.ClientEmail
 	if clientEmail == "" {
 		clientEmail = f.RandomClientEmail(8)
 	}
 
-	price := synvpn.CalculatePrice(*tariff, *period)
+	var price int64
+	var months int
+	var totalTerm string
+	if state.Promo {
+		price = synvpn.CalculatePrice(*tariff, synvpn.TariffPeriod{Months: 1})
+		totalTerm = fmt.Sprintf("%d %s", tariff.Days, russianDayWord(tariff.Days))
+	} else {
+		period := synvpn.FindPeriod(state.Months)
+		if period == nil {
+			f.SendMessage(chatID, "Выбранный срок не найден.")
+			return
+		}
+		price = synvpn.CalculatePrice(*tariff, *period)
+		months = period.Months
+		totalTerm = fmt.Sprintf("%d мес.", period.Months)
+		if state.CarryoverDays > 0 {
+			totalTerm += fmt.Sprintf(" + %d %s", state.CarryoverDays, russianDayWord(state.CarryoverDays))
+		}
+	}
+
+	if tariff.ID == synvpn.LoyaltyTariffID && !synvpn.IsLoyaltyTariffUser(clientEmail) {
+		f.SendMessage(chatID, "Этот тариф недоступен для выбранного пользователя.")
+		return
+	}
+
 	billing := synvpn.BillingService{}
 	paymentURL, err := billing.CreateYooMoneyPayment(
 		state.TgID,
 		clientEmail,
 		state.Comment,
 		tariff.ID,
-		period.Months,
+		months,
 		price*100,
 		time.Now().Add(30*time.Minute),
 		wallet,
@@ -172,15 +234,14 @@ func (f *Flow) ConfirmPurchase(chatID, tgUserID int64) {
 		f.SendMessage(chatID, fmt.Sprintf("❌ Не удалось создать платёж: %v", err))
 		return
 	}
+
 	purchaseMgr.Clear(chatID)
 	action, after := "регистрации", "подписка будет создана автоматически."
 	if state.Kind == synvpn.PurchaseRenew {
 		action, after = "продления", "подписка будет продлена автоматически."
 	}
-
-	totalTerm := fmt.Sprintf("%d мес.", period.Months)
-	if state.CarryoverDays > 0 {
-		totalTerm += fmt.Sprintf(" + %d %s", state.CarryoverDays, russianDayWord(state.CarryoverDays))
+	if state.Promo {
+		action, after = "регистрации", "пробная подписка будет создана автоматически."
 	}
 
 	keyboard := tu.InlineKeyboard(
@@ -215,12 +276,21 @@ func (f *Flow) purchaseState(chatID, tgUserID int64) (synvpn.PurchaseState, bool
 	}
 	return state, true
 }
+
 func tariffLabel(tariff synvpn.Tariff) string {
+	if tariff.Days > 0 {
+		return fmt.Sprintf("%d ГБ · %d %s · %d ₽ / %d дня", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.Price, tariff.Days)
+	}
 	return fmt.Sprintf("%d ГБ · %d %s · %d ₽/мес", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.MonthlyPrice)
 }
+
 func tariffSummary(tariff synvpn.Tariff) string {
+	if tariff.Days > 0 {
+		return fmt.Sprintf("📊 %d ГБ\n📱 %d %s\n📅 %d дня\n💰 %d ₽", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.Days, tariff.Price)
+	}
 	return fmt.Sprintf("📊 %d ГБ\n📱 %d %s\n💰 %d ₽/мес.", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.MonthlyPrice)
 }
+
 func periodLabel(tariff synvpn.Tariff, period synvpn.TariffPeriod) string {
 	price := synvpn.CalculatePrice(tariff, period)
 	if period.Months == 1 {
@@ -228,6 +298,7 @@ func periodLabel(tariff synvpn.Tariff, period synvpn.TariffPeriod) string {
 	}
 	return fmt.Sprintf("%d месяца · %d ₽ (%d ₽/мес · −%d%%)", period.Months, price, price/int64(period.Months), period.Discount)
 }
+
 func russianDeviceWord(count int) string {
 	last := count % 10
 	if last == 1 {

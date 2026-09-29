@@ -120,13 +120,21 @@ func (s *PaymentFulfillmentService) CreateClientFromPayment(payment *model.Payme
 	}
 
 	now := time.Now()
+	expiryTime := CalculateSubscriptionExpiry(0, payment.Months, now)
+	trafficReset := "monthly"
+	trafficResetDay := now.Day()
+	if tariff.Days > 0 {
+		expiryTime = now.AddDate(0, 0, tariff.Days).UnixMilli()
+		trafficReset = "never"
+		trafficResetDay = 0
+	}
 	client := model.Client{
 		ID:              uuid.NewString(),
 		Email:           payment.ClientEmail,
 		Enable:          true,
 		LimitIP:         0,
 		TotalGB:         tariff.TotalGB * 1024 * 1024 * 1024,
-		ExpiryTime:      CalculateSubscriptionExpiry(0, payment.Months, now),
+		ExpiryTime:      expiryTime,
 		SubID:           clientSubID,
 		Comment:         payment.Comment,
 		Password:        strings.ReplaceAll(uuid.NewString(), "-", ""),
@@ -135,8 +143,8 @@ func (s *PaymentFulfillmentService) CreateClientFromPayment(payment *model.Payme
 		Flow:            "xtls-rprx-vision",
 		Reset:           0,
 		TgID:            payment.TgID,
-		TrafficReset:    "monthly",
-		TrafficResetDay: now.Day(),
+		TrafficReset:    trafficReset,
+		TrafficResetDay: trafficResetDay,
 	}
 
 	needRestart, err := s.ClientService.Create(
