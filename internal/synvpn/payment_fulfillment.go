@@ -1,11 +1,12 @@
 package synvpn
 
 import (
-	"strings"
-	"github.com/google/uuid"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/google/uuid"
 
 	"gorm.io/gorm"
 
@@ -131,7 +132,7 @@ func (s *PaymentFulfillmentService) CreateClientFromPayment(payment *model.Payme
 		Auth:            strings.ReplaceAll(uuid.NewString(), "-", ""),
 		TgID:            payment.TgID,
 		TrafficReset:    "monthly",
-		TrafficResetDay: DefaultTrafficResetDay,
+		TrafficResetDay: tariff.TrafficResetDay,
 	}
 
 	needRestart, err := s.ClientService.Create(
@@ -155,7 +156,9 @@ func (s *PaymentFulfillmentService) CreateClientFromPayment(payment *model.Payme
 
 func containsInt(values []int, want int) bool {
 	for _, value := range values {
-		if value == want { return true }
+		if value == want {
+			return true
+		}
 	}
 	return false
 }
