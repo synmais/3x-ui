@@ -1,6 +1,9 @@
 package tgbot
 
 import (
+	"strings"
+
+	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
 )
@@ -72,10 +75,8 @@ func (t *Tgbot) gateCallback(query *telego.CallbackQuery) (isAdmin bool, ok bool
 }
 
 func isStrangerRegistrationCallback(data string) bool {
-	switch data {
-	case "subscription_confirm", "subscription_cancel":
+	if data == "subscription_confirm" || data == "subscription_cancel" {
 		return true
-	default:
-		return false
 	}
+	return strings.HasPrefix(data, "subscription_tariff_"+synvpn.RegistrationPromoTariffID)
 }

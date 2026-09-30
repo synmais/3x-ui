@@ -23,11 +23,24 @@ func (f *Flow) StartRegistration(chatID int64, user telego.User) {
 		TgID:        user.ID,
 		Comment:     telegramUserComment(user),
 		Kind:        synvpn.PurchaseCreate,
-		TariffID:    synvpn.RegistrationPromoTariffID,
-		Promo:       true,
 		UpdatedAt:   time.Now().UnixMilli(),
 	})
-	f.showRegistrationPromo(chatID, user)
+	f.showRegistrationTariffs(chatID, user)
+}
+
+func (f *Flow) showRegistrationTariffs(chatID int64, user telego.User) {
+	catalog := append([]synvpn.Tariff{synvpn.RegistrationPromoTariff()}, synvpn.Tariffs()...)
+	buttons := make([]telego.InlineKeyboardButton, 0, len(catalog)+1)
+	for _, tariff := range catalog {
+		buttons = append(buttons, tu.InlineKeyboardButton(tariffLabel(tariff)).WithCallbackData("subscription_tariff_"+tariff.ID))
+	}
+	buttons = append(buttons, tu.InlineKeyboardButton(f.Translate("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel"))
+
+	prompt := "Выберите тариф:"
+	if name := html.EscapeString(user.FirstName); name != "" {
+		prompt = fmt.Sprintf("👇 <i>%s</i>, %s", name, prompt)
+	}
+	f.SendMessage(chatID, prompt, tu.InlineKeyboardGrid(tu.InlineKeyboardCols(1, buttons...)))
 }
 
 func (f *Flow) showRegistrationPromo(chatID int64, user telego.User) {
@@ -109,6 +122,15 @@ func (f *Flow) PurchaseTariff(chatID, tgUserID int64, tariffID string) {
 		return
 	}
 	state.TariffID, state.UpdatedAt = tariff.ID, time.Now().UnixMilli()
+	if tariff.ID == synvpn.RegistrationPromoTariffID {
+		state.Promo = true
+		state.Months = 0
+		state.CarryoverDays = 0
+		purchaseMgr.Set(chatID, state)
+		f.showRegistrationPromo(chatID, telego.User{})
+		return
+	}
+	state.Promo = false
 	purchaseMgr.Set(chatID, state)
 	periods := synvpn.TariffPeriods()
 	buttons := make([]telego.InlineKeyboardButton, 0, len(periods)+1)
