@@ -238,9 +238,8 @@ func (t *Tgbot) answerCommand(message *telego.Message, chatId int64, isAdmin boo
 			}
 			t.claimInvite(chatId, message.From.ID, commandArgs[0])
 		}
-		// A stranger learns only its ChatID, which is what an admin needs to bind it.
 		if !isAdmin && t.levelOf(message.From.ID) == levelStranger {
-			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.askToAddUserId", "TgUserID=="+strconv.FormatInt(message.From.ID, 10)))
+			t.startRegistration(chatId, *message.From)
 			return
 		}
 		msg += t.I18nBot("tgbot.commands.start", "Firstname=="+html.EscapeString(message.From.FirstName))
