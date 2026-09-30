@@ -47,7 +47,7 @@ func (f *Flow) showRegistrationPromo(chatID int64, user telego.User) {
 	tariff := synvpn.RegistrationPromoTariff()
 	keyboard := tu.InlineKeyboard(
 		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton("🎁 Получить за 1 ₽").WithCallbackData("subscription_confirm"),
+			tu.InlineKeyboardButton("🎁 Получить за 2 ₽").WithCallbackData("subscription_confirm"),
 		),
 		tu.InlineKeyboardRow(
 			tu.InlineKeyboardButton(f.Translate("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel"),

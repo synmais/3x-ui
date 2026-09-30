@@ -17,7 +17,7 @@ type TariffPeriod struct {
 
 const (
 	DefaultRegistrationInboundID = 1
-	RegistrationPromoTariffID    = "registration_1rub"
+	RegistrationPromoTariffID    = "registration_2rub"
 	LoyaltyTariffID              = "loyalty_300gb_10"
 )
 
@@ -28,7 +28,7 @@ var registrationPromoTariff = Tariff{
 	InboundIDs: DefaultRegistrationInboundIDs,
 	TotalGB:    30,
 	LimitHWID:  3,
-	Price:      1,
+	Price:      2,
 	Days:       3,
 }
 
