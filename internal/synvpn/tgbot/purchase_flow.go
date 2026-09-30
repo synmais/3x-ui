@@ -313,12 +313,6 @@ func tariffSummary(tariff synvpn.Tariff) string {
 	return fmt.Sprintf("%d ГБ · %d %s · %d ₽/мес", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.MonthlyPrice)
 }
 
-func tariffSummary(tariff synvpn.Tariff) string {
-	if tariff.Days > 0 {
-		return fmt.Sprintf("📊 %d ГБ\n📱 %d %s\n📅 %d дня\n💰 %d ₽", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.Days, tariff.Price)
-	}
-	return fmt.Sprintf("📊 %d ГБ\n📱 %d %s\n💰 %d ₽/мес.", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.MonthlyPrice)
-}
 
 func periodLabel(tariff synvpn.Tariff, period synvpn.TariffPeriod) string {
 	price := synvpn.CalculatePrice(tariff, period)
