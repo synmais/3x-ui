@@ -36,9 +36,9 @@ func (f *Flow) showRegistrationTariffs(chatID int64, user telego.User) {
 	}
 	buttons = append(buttons, tu.InlineKeyboardButton(f.Translate("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel"))
 
-	prompt := "Выберите тариф:"
+	prompt := "👋 Добро пожаловать!\n\nДля продолжения выберите тариф:"
 	if name := html.EscapeString(user.FirstName); name != "" {
-		prompt = fmt.Sprintf("👇 <i>%s</i>, %s", name, prompt)
+		prompt = fmt.Sprintf("👋 <i>%s</i>, добро пожаловать!\n\nДля продолжения выберите тариф:", name)
 	}
 	f.SendMessage(chatID, prompt, tu.InlineKeyboardGrid(tu.InlineKeyboardCols(1, buttons...)))
 }
@@ -300,6 +300,13 @@ func (f *Flow) purchaseState(chatID, tgUserID int64) (synvpn.PurchaseState, bool
 }
 
 func tariffLabel(tariff synvpn.Tariff) string {
+	if tariff.Days > 0 {
+		return fmt.Sprintf("🎁 %d ГБ · %d %s · %d ₽ / %d дня", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.Price, tariff.Days)
+	}
+	return fmt.Sprintf("%d ГБ · %d %s · %d ₽/мес", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.MonthlyPrice)
+}
+
+func tariffSummary(tariff synvpn.Tariff) string {
 	if tariff.Days > 0 {
 		return fmt.Sprintf("%d ГБ · %d %s · %d ₽ / %d дня", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.Price, tariff.Days)
 	}

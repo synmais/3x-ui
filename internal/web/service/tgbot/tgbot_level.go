@@ -3,7 +3,6 @@ package tgbot
 import (
 	"strings"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
 )
