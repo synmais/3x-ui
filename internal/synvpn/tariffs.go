@@ -41,7 +41,10 @@ var loyaltyTariff = Tariff{
 }
 
 // Add loyalty user emails here in lowercase.
-var loyaltyTariffUsers = map[string]struct{}{}
+var loyaltyTariffUsers = map[string]struct{}{
+	"nvslov":     {},
+	"synviktor2": {},
+}
 
 var tariffs = []Tariff{
 	{
