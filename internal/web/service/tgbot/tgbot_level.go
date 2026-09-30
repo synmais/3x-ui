@@ -60,13 +60,22 @@ func (t *Tgbot) gateCommand(message *telego.Message) (isAdmin bool, ok bool) {
 	return false, false
 }
 
-// gateCallback answers a stranger's tap without acting on it: a stranger holds
-// no keyboard of ours, so any callback data from one is forged or stale.
+// gateCallback keeps the registration buttons available to strangers while
+// continuing to reject every other callback until a client account exists.
 func (t *Tgbot) gateCallback(query *telego.CallbackQuery) (isAdmin bool, ok bool) {
 	level := t.levelOf(query.From.ID)
-	if level == levelStranger {
+	if level == levelStranger && !isStrangerRegistrationCallback(query.Data) {
 		t.sendCallbackAnswerTgBot(query.ID, "")
 		return false, false
 	}
 	return level == levelAdmin, true
+}
+
+func isStrangerRegistrationCallback(data string) bool {
+	switch data {
+	case "subscription_confirm", "subscription_cancel":
+		return true
+	default:
+		return false
+	}
 }
