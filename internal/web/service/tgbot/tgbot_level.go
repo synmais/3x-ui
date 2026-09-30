@@ -78,5 +78,5 @@ func isStrangerRegistrationCallback(data string) bool {
 	if data == "subscription_confirm" || data == "subscription_cancel" {
 		return true
 	}
-	return strings.HasPrefix(data, "subscription_tariff_"+synvpn.RegistrationPromoTariffID)
+	return strings.HasPrefix(data, "subscription_tariff_") || strings.HasPrefix(data, "subscription_period_")
 }
