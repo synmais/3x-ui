@@ -88,6 +88,7 @@ func allModels() []any {
 		&model.OutboundSubscription{},
 		&model.SubBalancer{},
 		&model.Payment{},
+		&model.TuicTrafficReceipt{},
 	}
 }
 

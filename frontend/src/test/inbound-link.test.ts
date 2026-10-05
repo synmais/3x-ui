@@ -16,6 +16,7 @@ import {
   genVmessLink,
   genWireguardConfig,
   genWireguardLink,
+  isPostQuantumLink,
   preferPublicHost,
   resolveAddr,
 } from '@/lib/xray/inbound-link';
@@ -1232,6 +1233,41 @@ describe('genVlessLink XHTTP extra compatibility', () => {
 });
 
 describe('genTuicLink', () => {
+  it('canonicalizes legacy flat controller values to the Go runtime default', () => {
+    const cases = [
+      { value: '', expected: 'bbr' },
+      { value: ' ', expected: 'bbr' },
+      { value: 'BBR', expected: 'bbr' },
+      { value: ' CuBiC ', expected: 'cubic' },
+      { value: 'reno', expected: 'new_reno' },
+      { value: 'invalid', expected: 'new_reno' },
+    ];
+    for (const { value, expected } of cases) {
+      const inbound = InboundSchema.parse({
+        id: 10,
+        protocol: 'tuic',
+        port: 8443,
+        settings: {
+          congestion_control: value,
+          clients: [
+            {
+              uuid: '11111111-2222-3333-4444-555555555555',
+              password: 'secretpassword',
+              email: 'user@tuic',
+            },
+          ],
+        },
+      });
+      const link = genTuicLink({
+        inbound,
+        address: 'example.com',
+        clientUuid: '11111111-2222-3333-4444-555555555555',
+        clientPassword: 'secretpassword',
+      });
+      expect(new URL(link).searchParams.get('congestion_control')).toBe(expected);
+    }
+  });
+
   it('builds a standard tuic share link with all parameters', () => {
     const inbound = InboundSchema.parse({
       id: 1,
@@ -1378,5 +1414,48 @@ describe('genTuicLink', () => {
     expect(link).toContain('allow_insecure=1');
     expect(link).toContain('#TUIC-Node-US');
     expect(link).not.toContain('#TUIC-Node-US-US');
+  });
+});
+
+describe('isPostQuantumLink', () => {
+  type RealityFixture = {
+    settings: { clients: Array<{ id: string }>; encryption?: string };
+    streamSettings: { realitySettings: { settings: { mldsa65Verify?: string } } };
+  };
+  const [, raw] = fixturesForProtocol('vless').find(([name]) => name === 'vless-tcp-reality')!;
+  const clientId = (raw as RealityFixture).settings.clients[0].id;
+  const x25519Key = 'G3cdPSd1-NnlpTbWNSM5vHsT5VNzWfFzYSKwbUMnV1Y';
+  const mlkem768Key = 'A'.repeat(1579);
+
+  function realityLink(edit: (inbound: RealityFixture) => void = () => {}): string {
+    const copy = structuredClone(raw) as RealityFixture;
+    edit(copy);
+    return genVlessLink({ inbound: InboundSchema.parse(copy), address: 'example.test', clientId });
+  }
+
+  // #6730: the REALITY ML-KEM support hint is a short flag, not a large PQ payload.
+  it('keeps the QR for a plain REALITY link', () => {
+    expect(isPostQuantumLink(realityLink())).toBe(false);
+  });
+
+  it('keeps the QR for VLESS encryption authenticated by an X25519 key', () => {
+    const link = realityLink((ib) => {
+      ib.settings.encryption = `mlkem768x25519plus.native.0rtt.${x25519Key}`;
+    });
+    expect(isPostQuantumLink(link)).toBe(false);
+  });
+
+  it('hides the QR for VLESS encryption authenticated by an ML-KEM-768 key', () => {
+    const link = realityLink((ib) => {
+      ib.settings.encryption = `mlkem768x25519plus.native.0rtt.${mlkem768Key}`;
+    });
+    expect(isPostQuantumLink(link)).toBe(true);
+  });
+
+  it('hides the QR for a REALITY link carrying an ML-DSA-65 verify key', () => {
+    const link = realityLink((ib) => {
+      ib.streamSettings.realitySettings.settings.mldsa65Verify = 'B'.repeat(2603);
+    });
+    expect(isPostQuantumLink(link)).toBe(true);
   });
 });

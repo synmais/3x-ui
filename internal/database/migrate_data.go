@@ -60,6 +60,7 @@ func migrationModels() []any {
 		&model.OutboundSubscription{},
 		&model.SubBalancer{},
 		&model.Payment{},
+		&model.TuicTrafficReceipt{},
 	}
 }
 
