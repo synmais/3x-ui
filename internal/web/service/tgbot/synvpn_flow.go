@@ -24,6 +24,7 @@ func (t *Tgbot) synvpnFlow() *synvpntgbot.Flow {
 			return fulfillment.CreateClientFromPayment(payment)
 		},
 		SendMessage:            t.SendMsgToTgbot,
+		SendMessageNoPreview:   t.SendMsgToTgbotNoPreview,
 		Translate:              t.I18nBot,
 		RandomClientEmail:      t.randomLowerAndNum,
 		ShowRegistrationPrompt: t.showRegistrationPrompt,

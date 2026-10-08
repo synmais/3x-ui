@@ -26,6 +26,7 @@ type Flow struct {
 	FulfillPayment func(*model.Payment) error
 
 	SendMessage            func(int64, string, ...telego.ReplyMarkup)
+	SendMessageNoPreview   func(int64, string, ...telego.ReplyMarkup)
 	Translate              func(string, ...string) string
 	RandomClientEmail      func(int) string
 	ShowRegistrationPrompt func(int64)

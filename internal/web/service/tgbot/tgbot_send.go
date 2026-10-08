@@ -178,6 +178,65 @@ func (t *Tgbot) SendMsgToTgbot(chatId int64, msg string, replyMarkup ...telego.R
 	}
 }
 
+func (t *Tgbot) SendMsgToTgbotNoPreview(chatId int64, msg string, replyMarkup ...telego.ReplyMarkup) {
+	if !t.IsRunning() {
+		return
+	}
+
+	if msg == "" {
+		logger.Info("[tgbot] message is empty!")
+		return
+	}
+
+	allMessages := pageMessage(msg, telegramPageLimit)
+	for n, message := range allMessages {
+		params := telego.SendMessageParams{
+			ChatID:    tu.ID(chatId),
+			Text:      message,
+			ParseMode: "HTML",
+			LinkPreviewOptions: &telego.LinkPreviewOptions{
+				IsDisabled: true,
+			},
+		}
+
+		if len(replyMarkup) > 0 && n == len(allMessages)-1 {
+			params.ReplyMarkup = replyMarkup[0]
+		}
+
+		maxRetries := 3
+		for attempt := range maxRetries {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			_, err := bot.SendMessage(ctx, &params)
+			cancel()
+
+			if err == nil {
+				break
+			}
+
+			errStr := err.Error()
+			isConnectionError := strings.Contains(errStr, "connection") ||
+				strings.Contains(errStr, "timeout") ||
+				strings.Contains(errStr, "closed")
+
+			if isConnectionError && attempt < maxRetries-1 {
+				backoff := time.Duration(1<<uint(attempt)) * time.Second
+				logger.Warningf(
+					"Connection error sending telegram message (attempt %d/%d), retrying in %v: %v",
+					attempt+1, maxRetries, backoff, err,
+				)
+				time.Sleep(backoff)
+			} else {
+				logger.Warning("Error sending telegram message:", err)
+				break
+			}
+		}
+
+		if n < len(allMessages)-1 {
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+}
+
 // SendMsgToTgbotAdmins sends a message to all admin Telegram chats.
 func (t *Tgbot) SendMsgToTgbotAdmins(msg string, replyMarkup ...telego.ReplyMarkup) {
 	admins := adminSnapshot()
