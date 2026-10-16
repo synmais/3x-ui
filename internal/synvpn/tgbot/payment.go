@@ -39,10 +39,6 @@ func (f *Flow) ProcessYooMoneyPayment(payment *model.Payment) error {
 		"(iOS / Android / Windows / Linux / macOS)\n\n" +
 		"<a href=\"https://clashmi.app/download\">Clash Mi</a>\n" +
 		"(iOS / Android / ATV / Windows / Linux / macOS)\n\n" +
-		"<a href=\"https://apps.apple.com/ru/app/shadowrocket/id932747118\">Shadowrocket</a>\n" +
-		"(iOS / macOS / Apple TV).\n\n" +
-		"🔄 Для Happ, INCY и Clash Mi правила маршрутизации применяются автоматически. " +
-		"⚙️ Для Shadowrocket правила маршрутизации необходимо настроить вручную.\n\n" +
 		"⚙️ Для Clash Mi при добавлении подписки не забудьте включить переключатель <b>X-HWID</b>.\n\n" +
 		"🔗 <b>Ниже — ссылка на вашу подписку.</b>"
 

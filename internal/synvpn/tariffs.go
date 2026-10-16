@@ -21,7 +21,7 @@ const (
 	LoyaltyTariffID              = "loyalty_300gb_10"
 )
 
-var DefaultRegistrationInboundIDs = []int{1, 4}
+var DefaultRegistrationInboundIDs = []int{1, 10}
 
 var registrationPromoTariff = Tariff{
 	ID:         RegistrationPromoTariffID,
