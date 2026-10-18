@@ -1527,11 +1527,11 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.errorOperation"))
 			return
 		}
-		t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
 		if !isAdmin && !t.clientOwnedByTgUser(callbackQuery.From.ID, email) {
 			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.errorOperation"))
 			return
 		}
+		t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
 		switch action {
 		case "client_sub_links":
 			t.sendClientSubLinks(chatId, email, clientWindow)

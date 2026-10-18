@@ -96,8 +96,8 @@ func TestClientLinkCallbackServesOwnClient(t *testing.T) {
 	if n := calls("sendMessage"); n != 1 {
 		t.Errorf("sendMessage calls = %d, want 1: the owner must still get its links", n)
 	}
-	if n := calls("answerCallbackQuery"); n != 0 {
-		t.Errorf("answerCallbackQuery calls = %d, want 0: an allowed tap is not refused", n)
+	if n := calls("answerCallbackQuery"); n != 1 {
+		t.Errorf("answerCallbackQuery calls = %d, want 1: an allowed tap should be acknowledged", n)
 	}
 }
 

@@ -42,6 +42,12 @@ var clientPaymentTimers = struct {
 }{items: make(map[string]*time.Timer)}
 
 func (t *Tgbot) clientWindowForCallback(actor chatUser, sourceMessageID int) *clientWindowRenderer {
+	// A zero message ID is only used by unit level callback invocations, not by
+	// Telegram. Keep those renderers isolated so their state cannot leak between
+	// tests or affect a real user's open screen.
+	if sourceMessageID == 0 {
+		return &clientWindowRenderer{t: t, actor: actor, source: sourceMessageID, window: &clientWindow{}}
+	}
 	clientWindows.Lock()
 	window := clientWindows.items[actor]
 	if window == nil {
