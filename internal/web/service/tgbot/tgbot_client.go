@@ -384,6 +384,15 @@ func (t *Tgbot) sendClientQRLinks(chatId int64, email string, window ...*clientW
 			}
 		}
 	}
+	if len(window) > 0 && window[0] != nil {
+		t.SendMsgToTgbot(chatId, "QR-коды готовы.", clientBackToMenuKeyboard())
+	}
+}
+
+func clientBackToMenuKeyboard() *telego.InlineKeyboardMarkup {
+	return tu.InlineKeyboard(tu.InlineKeyboardRow(
+		tu.InlineKeyboardButton("⬅️ Назад в меню").WithCallbackData("client_window_home"),
+	))
 }
 
 // clientInfoMsg formats client information message based on traffic and flags.

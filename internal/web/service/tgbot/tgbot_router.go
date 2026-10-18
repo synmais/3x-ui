@@ -124,25 +124,11 @@ func (t *Tgbot) OnReceive() {
 					return nil
 				}
 				if userState == "awaiting_support_message" {
-					if strings.TrimSpace(message.Text) == "" {
-						t.SendMsgToTgbot(message.Chat.ID, "Пожалуйста, отправьте текстовое сообщение.")
-						return nil
-					}
-					t.submitSupportMessage(&message, actor)
+					t.handleSupportInput(&message, actor, userState)
 					return nil
 				}
-				if userIDText, ok := strings.CutPrefix(userState, "awaiting_support_reply "); ok {
-					userID, err := strconv.ParseInt(userIDText, 10, 64)
-					if err != nil || userID <= 0 {
-						userStateMgr.clear(actor)
-						t.SendMsgToTgbot(message.Chat.ID, t.I18nBot("tgbot.answers.errorOperation"))
-						return nil
-					}
-					if strings.TrimSpace(message.Text) == "" {
-						t.SendMsgToTgbot(message.Chat.ID, "Пожалуйста, отправьте текстовый ответ.")
-						return nil
-					}
-					t.submitSupportReply(&message, actor, userID)
+				if _, ok := strings.CutPrefix(userState, "awaiting_support_reply "); ok {
+					t.handleSupportInput(&message, actor, userState)
 					return nil
 				}
 				// Only a wizard step touches the draft, so only it takes the lock.
@@ -1031,6 +1017,12 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 				t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
 			}
 			return
+		case "client_window_home":
+			clientWindow.cancel()
+			t.clearPurchase(chatId)
+			userStateMgr.clear(actor)
+			t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
+			return
 		case "client_window_cancel":
 			clientWindow.cancel()
 			t.clearPurchase(chatId)
@@ -1563,6 +1555,8 @@ func isClientSelfCallback(data string) bool {
 	case "register_confirm":
 		return true
 	case "client_window_back", "client_window_cancel":
+		return true
+	case "client_window_home":
 		return true
 	}
 	if strings.HasPrefix(data, "register_tariff_") || strings.HasPrefix(data, "subscription_tariff_") {

@@ -3,6 +3,8 @@ package tgbot
 import (
 	"fmt"
 	"html"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,8 +75,21 @@ func (f *Flow) notifyTraffic(sub SubscriberSubscription) {
 	noticeState.Unlock()
 
 	percent := int(float64(sub.TrafficUsed) / float64(sub.TrafficTotal) * 100)
-	message := fmt.Sprintf("⚠️ Использовано %d%% трафика по подписке <b>%s</b>.", percent, html.EscapeString(sub.Email))
+	message := fmt.Sprintf("⚠️ Использовано %d%% трафика по подписке <b>%s</b>: %s из %s.",
+		percent, html.EscapeString(sub.Email), formatNoticeTraffic(sub.TrafficUsed), formatNoticeTraffic(sub.TrafficTotal))
 	f.SendMessage(sub.TelegramID, message, renewalKeyboard(sub.Email, "Улучшить тариф"))
+}
+
+func formatNoticeTraffic(bytes int64) string {
+	units := []string{"Б", "КБ", "МБ", "ГБ", "ТБ", "ПБ"}
+	size, unit := float64(bytes), 0
+	for size >= 1024 && unit < len(units)-1 {
+		size /= 1024
+		unit++
+	}
+	value := strconv.FormatFloat(size, 'f', 1, 64)
+	value = strings.TrimSuffix(strings.TrimSuffix(value, "0"), ".")
+	return strings.ReplaceAll(value, ".", ",") + " " + units[unit]
 }
 
 func (f *Flow) notifyExpiry(sub SubscriberSubscription) {

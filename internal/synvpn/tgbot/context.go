@@ -35,16 +35,18 @@ type Flow struct {
 	SettingService SettingService
 	FulfillPayment func(*model.Payment) error
 
-	SendMessage            func(int64, string, ...telego.ReplyMarkup)
-	SendToAdmins           func(string, ...telego.ReplyMarkup)
-	SendMessageNoPreview   func(int64, string, ...telego.ReplyMarkup)
-	Translate              func(string, ...string) string
-	RandomClientEmail      func(int) string
-	ShowRegistrationPrompt func(int64)
-	SendSubscriptionLinks  func(int64, string)
-	ListDevices            func(string) ([]Device, int, error)
-	DeleteDeviceByEmail    func(string, int) error
-	ListSubscriptions      func() ([]SubscriberSubscription, error)
-	EncodeCallback         func(string) string
-	SchedulePaymentExpiry  func(string, time.Time)
+	SendMessage              func(int64, string, ...telego.ReplyMarkup)
+	SendToAdmins             func(string, ...telego.ReplyMarkup)
+	SendSupportMediaToAdmins func(int64, []int)
+	CopySupportMedia         func(int64, int64, []int) error
+	SendMessageNoPreview     func(int64, string, ...telego.ReplyMarkup)
+	Translate                func(string, ...string) string
+	RandomClientEmail        func(int) string
+	ShowRegistrationPrompt   func(int64)
+	SendSubscriptionLinks    func(int64, string)
+	ListDevices              func(string) ([]Device, int, error)
+	DeleteDeviceByEmail      func(string, int) error
+	ListSubscriptions        func() ([]SubscriberSubscription, error)
+	EncodeCallback           func(string) string
+	SchedulePaymentExpiry    func(string, time.Time)
 }

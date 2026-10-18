@@ -126,8 +126,6 @@ func (f *Flow) ConfirmDeviceDelete(chatID, tgUserID int64, email string, id int)
 		tu.InlineKeyboardRow(
 			tu.InlineKeyboardButton("Да, удалить").
 				WithCallbackData(f.callback(fmt.Sprintf("client_device_delete %s %d", email, id))),
-			tu.InlineKeyboardButton("Отмена").
-				WithCallbackData(f.callback(fmt.Sprintf("client_device %s %d", email, id))),
 		),
 	)
 	f.SendMessage(chatID, "Удалить это устройство?", keyboard)

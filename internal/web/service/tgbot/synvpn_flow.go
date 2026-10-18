@@ -7,6 +7,7 @@ import (
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
 	synvpntgbot "github.com/mhsanaei/3x-ui/v3/internal/synvpn/tgbot"
 	"github.com/mhsanaei/3x-ui/v3/internal/xray"
@@ -32,8 +33,16 @@ func (t *Tgbot) synvpnFlow(window ...*clientWindowRenderer) *synvpntgbot.Flow {
 			}
 			return fulfillment.CreateClientFromPayment(payment)
 		},
-		SendMessage:            sendMessage,
-		SendToAdmins:           t.SendMsgToTgbotAdmins,
+		SendMessage:  sendMessage,
+		SendToAdmins: t.SendMsgToTgbotAdmins,
+		SendSupportMediaToAdmins: func(fromChatID int64, messageIDs []int) {
+			for _, adminID := range adminSnapshot() {
+				if err := copySupportMessages(fromChatID, adminID, messageIDs); err != nil {
+					logger.Warning("Failed to forward support attachment to admin:", err)
+				}
+			}
+		},
+		CopySupportMedia:       copySupportMessages,
 		SendMessageNoPreview:   t.SendMsgToTgbotNoPreview,
 		Translate:              t.I18nBot,
 		RandomClientEmail:      t.randomLowerAndNum,
@@ -115,26 +124,9 @@ func (t *Tgbot) askClientForSupport(actor chatUser, window ...*clientWindowRende
 	t.synvpnFlow(window...).AskSupportMessage(actor.chatID)
 }
 
-func (t *Tgbot) submitSupportMessage(message *telego.Message, actor chatUser) {
-	userStateMgr.clear(actor)
-	name := "Пользователь"
-	if message.From != nil {
-		name = strings.TrimSpace(strings.TrimSpace(message.From.FirstName) + " " + strings.TrimSpace(message.From.LastName))
-		if message.From.Username != "" {
-			name += " (@" + message.From.Username + ")"
-		}
-	}
-	t.synvpnFlow(t.clientWindowForCallback(actor, 0)).SendSupportRequest(actor.userID, name, message.Text)
-}
-
 func (t *Tgbot) startSupportReply(actor chatUser, userID int64) {
 	userStateMgr.set(actor, "awaiting_support_reply "+strconv.FormatInt(userID, 10))
 	t.synvpnFlow().AskSupportReply(actor.chatID, userID)
-}
-
-func (t *Tgbot) submitSupportReply(message *telego.Message, actor chatUser, userID int64) {
-	userStateMgr.clear(actor)
-	t.synvpnFlow().SendSupportReply(message.Chat.ID, userID, message.Text)
 }
 
 func (t *Tgbot) startRegistration(chatID int64, user telego.User, window ...*clientWindowRenderer) {
