@@ -123,6 +123,28 @@ func (t *Tgbot) OnReceive() {
 					t.handleBroadcastInput(&message, actor)
 					return nil
 				}
+				if userState == "awaiting_support_message" {
+					if strings.TrimSpace(message.Text) == "" {
+						t.SendMsgToTgbot(message.Chat.ID, "Пожалуйста, отправьте текстовое сообщение.")
+						return nil
+					}
+					t.submitSupportMessage(&message, actor)
+					return nil
+				}
+				if userIDText, ok := strings.CutPrefix(userState, "awaiting_support_reply "); ok {
+					userID, err := strconv.ParseInt(userIDText, 10, 64)
+					if err != nil || userID <= 0 {
+						userStateMgr.clear(actor)
+						t.SendMsgToTgbot(message.Chat.ID, t.I18nBot("tgbot.answers.errorOperation"))
+						return nil
+					}
+					if strings.TrimSpace(message.Text) == "" {
+						t.SendMsgToTgbot(message.Chat.ID, "Пожалуйста, отправьте текстовый ответ.")
+						return nil
+					}
+					t.submitSupportReply(&message, actor, userID)
+					return nil
+				}
 				// Only a wizard step touches the draft, so only it takes the lock.
 				draft := addClientDrafts.forActor(actor)
 				draft.Lock()
@@ -359,14 +381,19 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 	}
 
 	if isAdmin {
-		// get query from hash storage
-		decodedQuery, err := t.decodeQuery(callbackQuery.Data)
-		if err != nil {
-			// A button older than the 20-minute hash window is the common case
-			// here; the answer clears it, the message outlives a failed send.
-			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.noQuery"))
-			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.noQuery"))
-			return
+		// Support reply buttons carry only a Telegram user ID and remain usable
+		// for older tickets; other admin actions use expiring hash callbacks.
+		decodedQuery := callbackQuery.Data
+		if !strings.HasPrefix(decodedQuery, "support_reply ") {
+			var err error
+			decodedQuery, err = t.decodeQuery(callbackQuery.Data)
+			if err != nil {
+				// A button older than the 20-minute hash window is the common case
+				// here; the answer clears it, the message outlives a failed send.
+				t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.noQuery"))
+				t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.noQuery"))
+				return
+			}
 		}
 		dataArray := strings.Split(decodedQuery, " ")
 
@@ -375,6 +402,14 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			switch dataArray[0] {
 			case "broadcast_confirm":
 				t.confirmBroadcast(actor, dataArray[1], callbackQuery.Message.GetMessageID(), callbackQuery.ID)
+			case "support_reply":
+				userID, err := strconv.ParseInt(dataArray[1], 10, 64)
+				if err != nil || userID <= 0 {
+					t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.errorOperation"))
+					return
+				}
+				t.startSupportReply(actor, userID)
+				t.sendCallbackAnswerTgBot(callbackQuery.ID, "Введите ответ пользователю")
 			case "get_clients_for_sub":
 				inboundIdInt, err := strconv.Atoi(dataArray[1])
 				if err != nil {
@@ -985,6 +1020,26 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		}
 	}
 
+	var clientWindow *clientWindowRenderer
+	if !isAdmin {
+		clientWindow = t.clientWindowForCallback(actor, callbackQuery.Message.GetMessageID())
+		switch callbackQuery.Data {
+		case "client_window_back":
+			if !clientWindow.backToPrevious() {
+				t.sendCallbackAnswerTgBot(callbackQuery.ID, "Это первый экран")
+			} else {
+				t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
+			}
+			return
+		case "client_window_cancel":
+			clientWindow.cancel()
+			t.clearPurchase(chatId)
+			userStateMgr.clear(actor)
+			t.sendCallbackAnswerTgBot(callbackQuery.ID, "Отменено")
+			return
+		}
+	}
+
 	switch callbackQuery.Data {
 	case "get_usage":
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.serverUsage"))
@@ -1015,27 +1070,27 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		}
 
 		if len(traffics) > 0 {
-			t.getClientUsage(chatId, tgUserID, traffics[0].Email)
+			t.getClientUsage(chatId, tgUserID, traffics[0].Email, clientWindow)
 			return
 		}
 
-		t.startRegistration(chatId, callbackQuery.From)
+		t.startRegistration(chatId, callbackQuery.From, clientWindow)
 
 	case "register_cancel", "subscription_cancel":
 		t.clearPurchase(chatId)
-		t.SendMsgToTgbotDeleteAfter(
-			chatId,
-			t.I18nBot("tgbot.messages.cancel"),
-			3,
-			tu.ReplyKeyboardRemove(),
-		)
+		if clientWindow != nil {
+			clientWindow.cancel()
+		} else {
+			t.SendMsgToTgbotDeleteAfter(chatId, t.I18nBot("tgbot.messages.cancel"), 3, tu.ReplyKeyboardRemove())
+		}
+		t.sendCallbackAnswerTgBot(callbackQuery.ID, "Отменено")
 
 	case "register_confirm", "subscription_confirm":
 		t.sendCallbackAnswerTgBot(
 			callbackQuery.ID,
 			t.I18nBot("tgbot.answers.successfulOperation"),
 		)
-		t.confirmPurchase(chatId, callbackQuery.From.ID)
+		t.confirmPurchase(chatId, callbackQuery.From.ID, clientWindow)
 
 	case "client_traffic":
 		tgUserID := callbackQuery.From.ID
@@ -1046,13 +1101,13 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		}
 
 		if len(traffics) == 0 {
-			t.showRegistrationPrompt(chatId)
+			t.showRegistrationPrompt(chatId, clientWindow)
 			return
 		}
 
 		if len(traffics) == 1 {
 			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.clientUsage"))
-			t.getClientUsage(chatId, tgUserID, traffics[0].Email)
+			t.getClientUsage(chatId, tgUserID, traffics[0].Email, clientWindow)
 			return
 		}
 
@@ -1072,28 +1127,38 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 
 		keyboard := tu.InlineKeyboardGrid(tu.InlineKeyboardCols(cols, buttons...))
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.clientUsage"))
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), keyboard)
+		t.sendClientWindowWithMarkup(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), clientWindow, keyboard)
 
 	case "client_commands":
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.commands"))
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.commands.helpClientCommands"))
+		if clientWindow != nil {
+			clientWindow.send(chatId, t.I18nBot("tgbot.commands.helpClientCommands"))
+		} else {
+			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.commands.helpClientCommands"))
+		}
 	case "client_devices":
-		t.showOwnDevices(chatId, callbackQuery.From.ID)
+		t.showOwnDevices(chatId, callbackQuery.From.ID, clientWindow)
 	case "client_renew":
-		t.startOwnRenewal(chatId, callbackQuery.From)
+		t.startOwnRenewal(chatId, callbackQuery.From, clientWindow)
 	case "client_add_subscription":
-		t.startNewPurchase(chatId, callbackQuery.From)
+		t.startNewPurchase(chatId, callbackQuery.From, clientWindow)
+	case "client_support":
+		t.askClientForSupport(actor, clientWindow)
 	case "client_sub_links":
 		// show user's own clients to choose one for sub links
 		tgUserID := callbackQuery.From.ID
 		traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
 		if err != nil {
 			// fallback to message
-			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error())
+			t.sendClientWindowMessage(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error(), clientWindow)
 			return
 		}
 		if len(traffics) == 0 {
-			t.showRegistrationPrompt(chatId)
+			t.showRegistrationPrompt(chatId, clientWindow)
+			return
+		}
+		if len(traffics) == 1 {
+			t.sendClientSubLinks(chatId, traffics[0].Email, clientWindow)
 			return
 		}
 		var buttons []telego.InlineKeyboardButton
@@ -1105,17 +1170,17 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			cols = 2
 		}
 		keyboard := tu.InlineKeyboardGrid(tu.InlineKeyboardCols(cols, buttons...))
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), keyboard)
+		t.sendClientWindowWithMarkup(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), clientWindow, keyboard)
 	case "client_individual_links":
 		// show user's clients to choose for individual links
 		tgUserID := callbackQuery.From.ID
 		traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
 		if err != nil {
-			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error())
+			t.sendClientWindowMessage(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error(), clientWindow)
 			return
 		}
 		if len(traffics) == 0 {
-			t.showRegistrationPrompt(chatId)
+			t.showRegistrationPrompt(chatId, clientWindow)
 			return
 		}
 		var buttons2 []telego.InlineKeyboardButton
@@ -1127,17 +1192,17 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			cols2 = 2
 		}
 		keyboard2 := tu.InlineKeyboardGrid(tu.InlineKeyboardCols(cols2, buttons2...))
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), keyboard2)
+		t.sendClientWindowWithMarkup(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), clientWindow, keyboard2)
 	case "client_qr_links":
 		// show user's clients to choose for QR codes
 		tgUserID := callbackQuery.From.ID
 		traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
 		if err != nil {
-			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOccurred")+"\r\n"+err.Error())
+			t.sendClientWindowMessage(chatId, t.I18nBot("tgbot.answers.errorOccurred")+"\r\n"+err.Error(), clientWindow)
 			return
 		}
 		if len(traffics) == 0 {
-			t.showRegistrationPrompt(chatId)
+			t.showRegistrationPrompt(chatId, clientWindow)
 			return
 		}
 		var buttons3 []telego.InlineKeyboardButton
@@ -1149,7 +1214,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			cols3 = 2
 		}
 		keyboard3 := tu.InlineKeyboardGrid(tu.InlineKeyboardCols(cols3, buttons3...))
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), keyboard3)
+		t.sendClientWindowWithMarkup(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), clientWindow, keyboard3)
 	case "onlines":
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.onlines"))
 		t.onlineClients(chatId)
@@ -1439,17 +1504,21 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			t.SendMsgToTgbot(chatId, html.EscapeString(report.String()), tu.ReplyKeyboardRemove())
 		}
 	default:
-		if t.handleTariffCallback(chatId, callbackQuery.From.ID, callbackQuery.Data) {
+		if t.handleTariffCallback(chatId, callbackQuery.From.ID, callbackQuery.Data, clientWindow) {
+			t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
 			return
 		}
-		if t.handlePeriodCallback(chatId, callbackQuery.From.ID, callbackQuery.Data) {
+		if t.handlePeriodCallback(chatId, callbackQuery.From.ID, callbackQuery.Data, clientWindow) {
+			t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
 			return
 		}
 		if after, ok := strings.CutPrefix(callbackQuery.Data, "client_traffic "); ok {
-			t.getClientUsage(chatId, callbackQuery.From.ID, after)
+			t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
+			t.getClientUsage(chatId, callbackQuery.From.ID, after, clientWindow)
 			return
 		}
-		if t.handleDeviceCallback(chatId, callbackQuery.From.ID, callbackQuery.Data) {
+		if t.handleDeviceCallback(chatId, callbackQuery.From.ID, callbackQuery.Data, clientWindow) {
+			t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
 			return
 		}
 
@@ -1458,19 +1527,20 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.errorOperation"))
 			return
 		}
+		t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
 		if !isAdmin && !t.clientOwnedByTgUser(callbackQuery.From.ID, email) {
 			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.errorOperation"))
 			return
 		}
 		switch action {
 		case "client_sub_links":
-			t.sendClientSubLinks(chatId, email)
+			t.sendClientSubLinks(chatId, email, clientWindow)
 		case "client_individual_links":
-			t.sendClientIndividualLinks(chatId, email)
+			t.sendClientIndividualLinks(chatId, email, clientWindow)
 		case "client_qr_links":
-			t.sendClientQRLinks(chatId, email)
+			t.sendClientQRLinks(chatId, email, clientWindow)
 		case "client_renew":
-			t.startRenewal(chatId, callbackQuery.From, email)
+			t.startRenewal(chatId, callbackQuery.From, email, clientWindow)
 		}
 		return
 	}
@@ -1485,12 +1555,14 @@ func checkAdmin(tgId int64) bool {
 // admin-only; the caller still has to prove the client is its own.
 func isClientSelfCallback(data string) bool {
 	switch data {
-	case "register_user", "register_cancel", "subscription_cancel", "subscription_confirm", "client_renew", "client_add_subscription":
+	case "register_user", "register_cancel", "subscription_cancel", "subscription_confirm", "client_renew", "client_add_subscription", "client_support":
 		return true
 	case "client_traffic", "client_commands", "client_sub_links",
 		"client_individual_links", "client_qr_links", "client_devices":
 		return true
 	case "register_confirm":
+		return true
+	case "client_window_back", "client_window_cancel":
 		return true
 	}
 	if strings.HasPrefix(data, "register_tariff_") || strings.HasPrefix(data, "subscription_tariff_") {

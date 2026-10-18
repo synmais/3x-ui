@@ -309,7 +309,7 @@ func (s *BillingService) CreateYooMoneyPayment(
 	amountKopecks int64,
 	expiresAt time.Time,
 	wallet string,
-) (string, error) {
+) (*model.Payment, string, error) {
 	payment, err := s.CreatePayment(
 		tgID,
 		clientEmail,
@@ -321,13 +321,13 @@ func (s *BillingService) CreateYooMoneyPayment(
 		expiresAt,
 	)
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 
 	paymentURL, err := YooMoneyPaymentURL(wallet, payment, "")
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 
-	return paymentURL, nil
+	return payment, paymentURL, nil
 }

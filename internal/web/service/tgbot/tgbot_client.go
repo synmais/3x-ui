@@ -225,10 +225,10 @@ func (t *Tgbot) buildSubscriptionURLs(email string) (string, string, error) {
 }
 
 // sendClientSubLinks sends the subscription links for the client to the chat.
-func (t *Tgbot) sendClientSubLinks(chatId int64, email string) {
+func (t *Tgbot) sendClientSubLinks(chatId int64, email string, window ...*clientWindowRenderer) {
 	subURL, subJsonURL, err := t.buildSubscriptionURLs(email)
 	if err != nil {
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error())
+		t.sendClientWindowMessage(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error(), window...)
 		return
 	}
 	msg := "Subscription URL:\r\n<code>" + subURL + "</code>"
@@ -237,16 +237,20 @@ func (t *Tgbot) sendClientSubLinks(chatId int64, email string) {
 	}
 	inlineKeyboard := tu.InlineKeyboard(
 		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.renewSubscription")).WithCallbackData("client_renew "+email),
+			tu.InlineKeyboardButton(t.I18nBot("qrCode")).WithCallbackData(t.encodeQuery("client_qr_links "+email)),
 		),
 		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("qrCode")).WithCallbackData(t.encodeQuery("client_qr_links "+email)),
+			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.renewSubscription")).WithCallbackData("client_renew "+email),
 		),
 		tu.InlineKeyboardRow(
 			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.addSubscription")).WithCallbackData("client_add_subscription"),
 		),
 	)
-	t.SendMsgToTgbot(chatId, msg, inlineKeyboard)
+	if len(window) > 0 && window[0] != nil {
+		window[0].send(chatId, msg, inlineKeyboard)
+	} else {
+		t.SendMsgToTgbot(chatId, msg, inlineKeyboard)
+	}
 }
 
 // clientSubLinks builds the subscription's links in-process for the host subURL
@@ -264,19 +268,19 @@ func (t *Tgbot) clientSubLinks(email, subURL string) ([]string, error) {
 }
 
 // sendClientIndividualLinks sends the subscription's individual links to the user
-func (t *Tgbot) sendClientIndividualLinks(chatId int64, email string) {
+func (t *Tgbot) sendClientIndividualLinks(chatId int64, email string, window ...*clientWindowRenderer) {
 	subURL, _, err := t.buildSubscriptionURLs(email)
 	if err != nil {
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error())
+		t.sendClientWindowMessage(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error(), window...)
 		return
 	}
 	links, err := t.clientSubLinks(email, subURL)
 	if err != nil {
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error())
+		t.sendClientWindowMessage(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error(), window...)
 		return
 	}
 	if len(links) == 0 {
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.noResult"))
+		t.sendClientWindowMessage(chatId, t.I18nBot("tgbot.noResult"), window...)
 		return
 	}
 
@@ -294,15 +298,35 @@ func (t *Tgbot) sendClientIndividualLinks(chatId int64, email string) {
 			msg.WriteString(link)
 			msg.WriteString("</code>\r\n")
 		}
-		t.SendMsgToTgbot(chatId, msg.String())
+		if len(window) > 0 && window[0] != nil && i == 0 {
+			window[0].send(chatId, msg.String())
+		} else {
+			t.SendMsgToTgbot(chatId, msg.String())
+		}
 	}
 }
 
+func (t *Tgbot) sendClientWindowMessage(chatID int64, message string, window ...*clientWindowRenderer) {
+	if len(window) > 0 && window[0] != nil {
+		window[0].send(chatID, message)
+		return
+	}
+	t.SendMsgToTgbot(chatID, message)
+}
+
+func (t *Tgbot) sendClientWindowWithMarkup(chatID int64, message string, window *clientWindowRenderer, markup telego.ReplyMarkup) {
+	if window != nil {
+		window.send(chatID, message, markup)
+		return
+	}
+	t.SendMsgToTgbot(chatID, message, markup)
+}
+
 // sendClientQRLinks generates QR images for subscription URL, JSON URL, and a few individual links, then sends them
-func (t *Tgbot) sendClientQRLinks(chatId int64, email string) {
+func (t *Tgbot) sendClientQRLinks(chatId int64, email string, window ...*clientWindowRenderer) {
 	subURL, subJsonURL, err := t.buildSubscriptionURLs(email)
 	if err != nil {
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error())
+		t.sendClientWindowMessage(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error(), window...)
 		return
 	}
 
@@ -315,7 +339,7 @@ func (t *Tgbot) sendClientQRLinks(chatId int64, email string) {
 	}
 
 	// Inform user
-	t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.qrCodeForClient", "Email=="+email))
+	t.sendClientWindowMessage(chatId, t.I18nBot("tgbot.answers.qrCodeForClient", "Email=="+email), window...)
 
 	// Send sub URL QR (filename: sub.png)
 	if png, err := createQR(subURL, 320); err == nil {
@@ -492,7 +516,7 @@ func (t *Tgbot) clientInfoMsg(
 }
 
 // showRegistrationPrompt... *some comment*
-func (t *Tgbot) showRegistrationPrompt(chatId int64) {
+func (t *Tgbot) showRegistrationPrompt(chatId int64, window ...*clientWindowRenderer) {
 	inlineKeyboard := tu.InlineKeyboard(
 		tu.InlineKeyboardRow(
 			tu.InlineKeyboardButton("🆕 Зарегистрироваться").
@@ -500,11 +524,11 @@ func (t *Tgbot) showRegistrationPrompt(chatId int64) {
 		),
 	)
 
-	t.SendMsgToTgbot(
-		chatId,
-		t.I18nBot("tgbot.answers.userNotRegistered"),
-		inlineKeyboard,
-	)
+	if len(window) > 0 && window[0] != nil {
+		window[0].send(chatId, t.I18nBot("tgbot.answers.userNotRegistered"), inlineKeyboard)
+	} else {
+		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.userNotRegistered"), inlineKeyboard)
+	}
 }
 
 // clientOwnedByTgUser reports whether email belongs to a client bound to this
@@ -523,7 +547,11 @@ func (t *Tgbot) clientOwnedByTgUser(tgUserID int64, email string) bool {
 }
 
 // getClientUsage retrieves and sends client usage information to the chat.
-func (t *Tgbot) getClientUsage(chatId int64, tgUserID int64, email ...string) {
+func (t *Tgbot) getClientUsage(chatId int64, tgUserID int64, email string, window ...*clientWindowRenderer) {
+	send := t.SendMsgToTgbot
+	if len(window) > 0 && window[0] != nil {
+		send = window[0].send
+	}
 	traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
 	if err != nil {
 		logger.Warning(err)
@@ -533,41 +561,29 @@ func (t *Tgbot) getClientUsage(chatId int64, tgUserID int64, email ...string) {
 	}
 
 	if len(traffics) == 0 {
-		t.showRegistrationPrompt(chatId)
+		t.showRegistrationPrompt(chatId, window...)
 		return
 	}
 
 	output := ""
 
-	if len(traffics) > 0 {
-		if len(email) > 0 {
-			for _, traffic := range traffics {
-				if traffic.Email == email[0] {
-					output := t.clientInfoMsg(traffic, true, true, true, true, true, true)
-					if traffic.Email == email[0] {
-						output := t.clientInfoMsg(traffic, true, true, true, true, true, true)
-						t.SendMsgToTgbot(chatId, output)
-						return
-					}
-					t.SendMsgToTgbot(chatId, output)
-					return
-				}
-			}
-			msg := t.I18nBot("tgbot.noResult")
-			t.SendMsgToTgbot(chatId, msg)
-			return
-		} else {
-			for _, traffic := range traffics {
-				output += t.clientInfoMsg(traffic, true, true, true, true, true, false)
-				output += "\r\n"
+	if email != "" {
+		for _, traffic := range traffics {
+			if traffic.Email == email {
+				output = t.clientInfoMsg(traffic, true, true, true, true, true, true)
+				send(chatId, output)
+				return
 			}
 		}
+		send(chatId, t.I18nBot("tgbot.noResult"))
+		return
 	}
-
-	output += t.I18nBot("tgbot.messages.refreshedOn", "Time=="+time.Now().Format("2006-01-02 15:04:05"))
-	t.SendMsgToTgbot(chatId, output)
-	output = t.I18nBot("tgbot.commands.pleaseChoose")
-	t.SendAnswer(chatId, output, false)
+	buttons := make([]telego.InlineKeyboardButton, 0, len(traffics))
+	for _, traffic := range traffics {
+		buttons = append(buttons, tu.InlineKeyboardButton(traffic.Email).WithCallbackData(t.encodeQuery("client_traffic "+traffic.Email)))
+	}
+	kb := tu.InlineKeyboardGrid(tu.InlineKeyboardCols(1, buttons...))
+	send(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), kb)
 }
 
 // searchClientIps searches and sends client IP addresses for the given email.

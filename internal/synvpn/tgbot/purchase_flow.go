@@ -20,21 +20,20 @@ func ClearPurchase(chatID int64) {
 
 func (f *Flow) StartRegistration(chatID int64, user telego.User) {
 	purchaseMgr.Set(chatID, synvpn.PurchaseState{
-		TgID:        user.ID,
-		Comment:     telegramUserComment(user),
-		Kind:        synvpn.PurchaseCreate,
-		UpdatedAt:   time.Now().UnixMilli(),
+		TgID:      user.ID,
+		Comment:   telegramUserComment(user),
+		Kind:      synvpn.PurchaseCreate,
+		UpdatedAt: time.Now().UnixMilli(),
 	})
 	f.showRegistrationTariffs(chatID, user)
 }
 
 func (f *Flow) showRegistrationTariffs(chatID int64, user telego.User) {
 	catalog := append([]synvpn.Tariff{synvpn.RegistrationPromoTariff()}, synvpn.Tariffs()...)
-	buttons := make([]telego.InlineKeyboardButton, 0, len(catalog)+1)
+	buttons := make([]telego.InlineKeyboardButton, 0, len(catalog))
 	for _, tariff := range catalog {
 		buttons = append(buttons, tu.InlineKeyboardButton(tariffLabel(tariff)).WithCallbackData("subscription_tariff_"+tariff.ID))
 	}
-	buttons = append(buttons, tu.InlineKeyboardButton(f.Translate("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel"))
 
 	prompt := "👋 Добро пожаловать!\n\nДля продолжения выберите тариф:"
 	if name := html.EscapeString(user.FirstName); name != "" {
@@ -45,14 +44,9 @@ func (f *Flow) showRegistrationTariffs(chatID int64, user telego.User) {
 
 func (f *Flow) showRegistrationPromo(chatID int64, user telego.User) {
 	tariff := synvpn.RegistrationPromoTariff()
-	keyboard := tu.InlineKeyboard(
-		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton("🎁 Получить за 2 ₽").WithCallbackData("subscription_confirm"),
-		),
-		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(f.Translate("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel"),
-		),
-	)
+	keyboard := tu.InlineKeyboard(tu.InlineKeyboardRow(
+		tu.InlineKeyboardButton("🎁 Получить за 2 ₽").WithCallbackData("subscription_confirm"),
+	))
 	prompt := "🎁 <b>Пробный тариф</b>\n\n" +
 		fmt.Sprintf("📊 %d ГБ\n📱 %d %s\n📅 %d дня\n💰 <b>%d ₽</b>", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.Days, tariff.Price)
 	if name := html.EscapeString(user.FirstName); name != "" {
@@ -76,11 +70,20 @@ func (f *Flow) StartPurchase(
 	})
 
 	catalog := synvpn.TariffsForEmail(email)
-	buttons := make([]telego.InlineKeyboardButton, 0, len(catalog)+1)
-	for _, tariff := range catalog {
-		buttons = append(buttons, tu.InlineKeyboardButton(tariffLabel(tariff)).WithCallbackData("subscription_tariff_"+tariff.ID))
+	var currentTariff *synvpn.Tariff
+	if kind == synvpn.PurchaseRenew {
+		if record, err := f.ClientService.GetRecordByEmail(nil, email); err == nil {
+			currentTariff = synvpn.FindTariffForRecord(record.TotalGB, record.LimitHwid)
+		}
 	}
-	buttons = append(buttons, tu.InlineKeyboardButton(f.Translate("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel"))
+	buttons := make([]telego.InlineKeyboardButton, 0, len(catalog))
+	for _, tariff := range catalog {
+		label := tariffLabel(tariff)
+		if currentTariff != nil && currentTariff.ID == tariff.ID {
+			label += " (текущ.)"
+		}
+		buttons = append(buttons, tu.InlineKeyboardButton(label).WithCallbackData("subscription_tariff_"+tariff.ID))
+	}
 
 	prompt := "Выберите тариф:"
 	if kind == synvpn.PurchaseRenew {
@@ -133,11 +136,10 @@ func (f *Flow) PurchaseTariff(chatID, tgUserID int64, tariffID string) {
 	state.Promo = false
 	purchaseMgr.Set(chatID, state)
 	periods := synvpn.TariffPeriods()
-	buttons := make([]telego.InlineKeyboardButton, 0, len(periods)+1)
+	buttons := make([]telego.InlineKeyboardButton, 0, len(periods))
 	for _, period := range periods {
 		buttons = append(buttons, tu.InlineKeyboardButton(periodLabel(*tariff, period)).WithCallbackData(fmt.Sprintf("subscription_period_%d", period.Months)))
 	}
-	buttons = append(buttons, tu.InlineKeyboardButton(f.Translate("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel"))
 	f.SendMessage(chatID, fmt.Sprintf("Вы выбрали:\n\n%s\n\nВыберите срок подписки:", tariffSummary(*tariff)), tu.InlineKeyboardGrid(tu.InlineKeyboardCols(1, buttons...)))
 }
 
@@ -179,7 +181,7 @@ func (f *Flow) PurchasePeriod(chatID, tgUserID int64, months int) {
 	if state.Kind == synvpn.PurchaseRenew {
 		action = "Подтвердить продление?"
 	}
-	keyboard := tu.InlineKeyboard(tu.InlineKeyboardRow(tu.InlineKeyboardButton("✅ Подтвердить").WithCallbackData("subscription_confirm")), tu.InlineKeyboardRow(tu.InlineKeyboardButton(f.Translate("tgbot.buttons.cancel")).WithCallbackData("subscription_cancel")))
+	keyboard := tu.InlineKeyboard(tu.InlineKeyboardRow(tu.InlineKeyboardButton("✅ Подтвердить").WithCallbackData("subscription_confirm")))
 	totalTerm := fmt.Sprintf("%d мес.", period.Months)
 	if state.CarryoverDays > 0 {
 		totalTerm += fmt.Sprintf(" + %d %s", state.CarryoverDays, russianDayWord(state.CarryoverDays))
@@ -242,14 +244,15 @@ func (f *Flow) ConfirmPurchase(chatID, tgUserID int64) {
 	}
 
 	billing := synvpn.BillingService{}
-	paymentURL, err := billing.CreateYooMoneyPayment(
+	expiresAt := time.Now().Add(time.Hour)
+	payment, paymentURL, err := billing.CreateYooMoneyPayment(
 		state.TgID,
 		clientEmail,
 		state.Comment,
 		tariff.ID,
 		months,
 		price*100,
-		time.Now().Add(30*time.Minute),
+		expiresAt,
 		wallet,
 	)
 	if err != nil {
@@ -275,7 +278,7 @@ func (f *Flow) ConfirmPurchase(chatID, tgUserID int64) {
 	f.SendMessage(
 		chatID,
 		fmt.Sprintf(
-			"💳 <b>Оплата %s</b>\n\n%s\n📅 %s\n💰 <b>%d ₽</b>\n\nПосле оплаты %s\n\n⚠️ <b>Важно о комиссии</b>\n\nДанная операция может трактоваться банком как перевод по номеру карты.\n\nНапример, Альфа-Банк может взимать комиссию 1,95%% + 49 ₽, тогда как Сбербанк, Т-Банк и МТС Деньги в рамках ежемесячного лимита комиссию не взимают.\n\nУточните размер комиссии за переводы по номеру карты в вашем банке перед оплатой.",
+			"💳 <b>Оплата %s</b>\n\n%s\n📅 %s\n💰 <b>%d ₽</b>\n\nПосле оплаты %s\n\n⏳ Ссылка на оплату действует 1 час. Если не успеете оплатить, можно будет создать новый платёж.\n\n⚠️ <b>Важно о комиссии</b>\n\nДанная операция может трактоваться банком как перевод по номеру карты.\n\nНапример, Альфа-Банк может взимать комиссию 1,95%% + 49 ₽, тогда как Сбербанк, Т-Банк и МТС Деньги в рамках ежемесячного лимита комиссию не взимают.\n\nУточните размер комиссии за переводы по номеру карты в вашем банке перед оплатой.",
 			action,
 			tariffSummary(*tariff),
 			totalTerm,
@@ -284,6 +287,9 @@ func (f *Flow) ConfirmPurchase(chatID, tgUserID int64) {
 		),
 		keyboard,
 	)
+	if f.SchedulePaymentExpiry != nil {
+		f.SchedulePaymentExpiry(payment.ID, expiresAt)
+	}
 }
 
 func (f *Flow) purchaseState(chatID, tgUserID int64) (synvpn.PurchaseState, bool) {
@@ -312,7 +318,6 @@ func tariffSummary(tariff synvpn.Tariff) string {
 	}
 	return fmt.Sprintf("%d ГБ · %d %s · %d ₽/мес", tariff.TotalGB, tariff.LimitHWID, russianDeviceWord(tariff.LimitHWID), tariff.MonthlyPrice)
 }
-
 
 func periodLabel(tariff synvpn.Tariff, period synvpn.TariffPeriod) string {
 	price := synvpn.CalculatePrice(tariff, period)

@@ -409,6 +409,9 @@ func (s *Server) startTask(restartXray bool, loc *time.Location) {
 		// check for Telegram bot callback query hash storage reset
 		_, _ = s.cron.AddJob(cadenceCheckHash, job.NewCheckHashStorageJob())
 	}
+	// Keep the subscriber threshold checker registered even when Telegram is
+	// disabled at startup; it becomes active after the bot is enabled at runtime.
+	_, _ = s.cron.AddJob("@every 5m", job.NewSynVPNNotifyJob())
 
 	// Discord-bot-dependent jobs: periodic stats report + database backup.
 	isDiscordEnabled, err := s.settingService.GetDiscordBotEnable()

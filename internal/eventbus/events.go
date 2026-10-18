@@ -22,7 +22,8 @@ const (
 	EventMemoryHigh EventType = "memory.high"
 
 	// Security
-	EventLoginAttempt EventType = "login.attempt"
+	EventLoginAttempt      EventType = "login.attempt"
+	EventClientDeviceAdded EventType = "client.device_added"
 )
 
 // Event is the unit of information flowing through the bus.
@@ -62,4 +63,13 @@ type LoginEventData struct {
 type SystemMetricData struct {
 	Percent   float64 // current usage percentage
 	Threshold int     // configured threshold
+}
+
+// ClientDeviceData identifies the subscriber and subscription affected by a
+// newly registered device. It contains no device fingerprint or raw HWID.
+type ClientDeviceData struct {
+	TelegramID int64
+	Email      string
+	Registered int
+	Limit      int
 }

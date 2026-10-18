@@ -5,6 +5,7 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/xray"
 	"github.com/mymmrac/telego"
 	"gorm.io/gorm"
+	"time"
 )
 
 type ClientService interface {
@@ -19,6 +20,15 @@ type SettingService interface {
 	GetYooMoneyWallet() (string, error)
 }
 
+type SubscriberSubscription struct {
+	TelegramID    int64
+	Email         string
+	ExpiryTime    int64
+	TrafficUsed   int64
+	TrafficTotal  int64
+	TrafficActive bool
+}
+
 type Flow struct {
 	ClientService  ClientService
 	InboundService InboundService
@@ -26,6 +36,7 @@ type Flow struct {
 	FulfillPayment func(*model.Payment) error
 
 	SendMessage            func(int64, string, ...telego.ReplyMarkup)
+	SendToAdmins           func(string, ...telego.ReplyMarkup)
 	SendMessageNoPreview   func(int64, string, ...telego.ReplyMarkup)
 	Translate              func(string, ...string) string
 	RandomClientEmail      func(int) string
@@ -33,5 +44,7 @@ type Flow struct {
 	SendSubscriptionLinks  func(int64, string)
 	ListDevices            func(string) ([]Device, int, error)
 	DeleteDeviceByEmail    func(string, int) error
+	ListSubscriptions      func() ([]SubscriberSubscription, error)
 	EncodeCallback         func(string) string
+	SchedulePaymentExpiry  func(string, time.Time)
 }

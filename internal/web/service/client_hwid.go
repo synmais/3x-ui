@@ -9,6 +9,7 @@ import (
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	"github.com/mhsanaei/3x-ui/v3/internal/eventbus"
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 
 	"gorm.io/gorm"
@@ -118,7 +119,12 @@ func (s *ClientService) EnforceHwidForSubID(subID string, req HwidRequest) (Hwid
 	if limit <= 0 {
 		res.Allowed = true
 		if len(req.Hwid) >= minHwidLength {
-			trackUnlimitedHwid(db, subID, req)
+			if trackUnlimitedHwid(db, subID, req) && eventBus != nil {
+				var registered int64
+				if db.Model(&model.ClientHwid{}).Where("sub_id = ?", subID).Count(&registered).Error == nil {
+					publishClientDeviceAdded(db, subID, int(registered), 0)
+				}
+			}
 		}
 		return res, nil
 	}
@@ -130,6 +136,7 @@ func (s *ClientService) EnforceHwidForSubID(subID string, req HwidRequest) (Hwid
 		return res, nil
 	}
 	hwidHash := hashHwid(req.Hwid)
+	newDevice := false
 
 	err = db.Transaction(func(tx *gorm.DB) error {
 		limit, err := effectiveHwidLimitForSubID(tx, subID)
@@ -176,25 +183,62 @@ func (s *ClientService) EnforceHwidForSubID(subID string, req HwidRequest) (Hwid
 		if err := tx.Create(&model.ClientHwid{SubID: subID, HwidHash: hwidHash, FirstSeen: now, LastSeen: now, UserAgent: req.UserAgent, DeviceOS: req.DeviceOS, OsVersion: req.OsVersion, DeviceModel: req.DeviceModel}).Error; err != nil {
 			return err
 		}
+		newDevice = true
 		res.Allowed = true
 		res.Registered = int(count) + 1
 		res.LimitReached = res.Registered >= limit
 		return nil
 	})
+	if err == nil && newDevice && eventBus != nil {
+		publishClientDeviceAdded(db, subID, res.Registered, res.Limit)
+	}
 	return res, err
+}
+
+func publishClientDeviceAdded(db *gorm.DB, subID string, registered, limit int) {
+	var records []model.ClientRecord
+	if err := db.Where("sub_id = ? AND enable = ? AND tg_id <> 0", subID, true).Find(&records).Error; err != nil {
+		logger.Warning("load subscriber for new device notification failed:", err)
+		return
+	}
+	seen := make(map[int64]bool)
+	for _, record := range records {
+		if seen[record.TgID] {
+			continue
+		}
+		seen[record.TgID] = true
+		eventBus.Publish(eventbus.Event{
+			Type:   eventbus.EventClientDeviceAdded,
+			Source: record.Email,
+			Data: &eventbus.ClientDeviceData{
+				TelegramID: record.TgID,
+				Email:      record.Email,
+				Registered: registered,
+				Limit:      limit,
+			},
+		})
+	}
 }
 
 // trackUnlimitedHwid lists devices of a sub with no HWID limit in the panel. It is
 // best-effort: a failed write must not deny a subscription nothing restricts.
-func trackUnlimitedHwid(db *gorm.DB, subID string, req HwidRequest) {
+func trackUnlimitedHwid(db *gorm.DB, subID string, req HwidRequest) bool {
 	now := time.Now().UnixMilli()
+	hash := hashHwid(req.Hwid)
+	var existing int64
+	if err := db.Model(&model.ClientHwid{}).Where("sub_id = ? AND hwid_hash = ?", subID, hash).Count(&existing).Error; err != nil {
+		logger.Warning("check tracked unlimited HWID failed:", err)
+		return false
+	}
 	err := db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "sub_id"}, {Name: "hwid_hash"}},
 		DoUpdates: clause.AssignmentColumns([]string{"last_seen", "user_agent", "device_os", "os_version", "device_model"}),
-	}).Create(&model.ClientHwid{SubID: subID, HwidHash: hashHwid(req.Hwid), FirstSeen: now, LastSeen: now, UserAgent: req.UserAgent, DeviceOS: req.DeviceOS, OsVersion: req.OsVersion, DeviceModel: req.DeviceModel}).Error
+	}).Create(&model.ClientHwid{SubID: subID, HwidHash: hash, FirstSeen: now, LastSeen: now, UserAgent: req.UserAgent, DeviceOS: req.DeviceOS, OsVersion: req.OsVersion, DeviceModel: req.DeviceModel}).Error
 	if err != nil {
 		logger.Warning("track HWID for unlimited subscription failed:", err)
+		return false
 	}
+	return existing == 0
 }
 
 // HwidSlotStatusForSubID is SELECT-only: it must never write client_hwids or

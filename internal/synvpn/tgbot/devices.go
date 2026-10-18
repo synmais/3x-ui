@@ -2,6 +2,7 @@ package tgbot
 
 import (
 	"fmt"
+	"html"
 	"strconv"
 	"strings"
 	"time"
@@ -88,8 +89,24 @@ func (f *Flow) ShowDevice(chatID, tgUserID int64, email string, id int) {
 		if device.ID != id {
 			continue
 		}
-		message := fmt.Sprintf("📱 <b>Устройство</b>\n\n%s\nFingerprint: <code>%s</code>\nПодключено: %s\nПоследний вход: %s",
-			deviceLabel(device), device.Fingerprint, formatDeviceTime(device.FirstSeen), formatDeviceTime(device.LastSeen))
+		message := "📱 <b>Устройство</b>"
+		if device.DeviceModel != "" {
+			message += "\nМодель: " + html.EscapeString(device.DeviceModel)
+		} else if device.DeviceOS == "" && device.UserAgent == "" {
+			message += "\nНазвание: " + html.EscapeString(deviceLabel(device))
+		}
+		if device.DeviceOS != "" || device.OsVersion != "" {
+			os := strings.TrimSpace(device.DeviceOS + " " + device.OsVersion)
+			message += "\nОС: " + html.EscapeString(os)
+		}
+		if device.UserAgent != "" {
+			message += "\nПриложение / User-Agent: <code>" + html.EscapeString(device.UserAgent) + "</code>"
+		}
+		if device.Fingerprint != "" {
+			message += "\nFingerprint: <code>" + html.EscapeString(device.Fingerprint) + "</code>"
+		}
+		message += "\n\nДобавлено: " + formatDeviceTime(device.FirstSeen)
+		message += "\nПоследний запрос подписки: " + formatDeviceTime(device.LastSeen)
 		keyboard := tu.InlineKeyboard(
 			tu.InlineKeyboardRow(tu.InlineKeyboardButton("🗑 Удалить устройство").
 				WithCallbackData(f.callback(fmt.Sprintf("client_device_remove %s %d", email, id)))),

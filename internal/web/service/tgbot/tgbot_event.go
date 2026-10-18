@@ -30,6 +30,10 @@ var tgEventLimiter = eventbus.NewRateLimiter(1 * time.Minute)
 // HandleEvent is the eventbus subscriber callback. It formats incoming events
 // as Telegram messages and sends them to all admin chats.
 func (t *Tgbot) HandleEvent(e eventbus.Event) {
+	if e.Type == eventbus.EventClientDeviceAdded {
+		t.notifyNewClientDevice(e)
+		return
+	}
 	if !t.isEventEnabled(e.Type) {
 		return
 	}
@@ -42,6 +46,14 @@ func (t *Tgbot) HandleEvent(e eventbus.Event) {
 	if msg != "" {
 		t.SendMsgToTgbotAdmins(msg)
 	}
+}
+
+func (t *Tgbot) notifyNewClientDevice(e eventbus.Event) {
+	data, ok := e.Data.(*eventbus.ClientDeviceData)
+	if !ok || data.TelegramID == 0 {
+		return
+	}
+	t.synvpnFlow().NotifyNewDevice(data.TelegramID, data.Email, data.Registered, data.Limit)
 }
 
 func (t *Tgbot) isEventEnabled(eventType eventbus.EventType) bool {
