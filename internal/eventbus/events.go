@@ -24,6 +24,7 @@ const (
 	// Security
 	EventLoginAttempt      EventType = "login.attempt"
 	EventClientDeviceAdded EventType = "client.device_added"
+	EventClientDeviceLimit EventType = "client.device_limit_reached"
 )
 
 // Event is the unit of information flowing through the bus.

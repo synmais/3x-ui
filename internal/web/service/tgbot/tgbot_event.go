@@ -34,6 +34,10 @@ func (t *Tgbot) HandleEvent(e eventbus.Event) {
 		t.notifyNewClientDevice(e)
 		return
 	}
+	if e.Type == eventbus.EventClientDeviceLimit {
+		t.notifyClientDeviceLimitReached(e)
+		return
+	}
 	if !t.isEventEnabled(e.Type) {
 		return
 	}
@@ -54,6 +58,14 @@ func (t *Tgbot) notifyNewClientDevice(e eventbus.Event) {
 		return
 	}
 	t.synvpnFlow().NotifyNewDevice(data.TelegramID, data.Email, data.Registered, data.Limit)
+}
+
+func (t *Tgbot) notifyClientDeviceLimitReached(e eventbus.Event) {
+	data, ok := e.Data.(*eventbus.ClientDeviceData)
+	if !ok || data.TelegramID == 0 {
+		return
+	}
+	t.synvpnFlow().NotifyDeviceLimitReached(data.TelegramID, data.Email, data.Registered, data.Limit)
 }
 
 func (t *Tgbot) isEventEnabled(eventType eventbus.EventType) bool {

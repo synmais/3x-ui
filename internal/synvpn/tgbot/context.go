@@ -40,7 +40,6 @@ type Flow struct {
 	SendSupportMediaToAdmins func(int64, []int)
 	CopySupportMedia         func(int64, int64, []int) error
 	SendMessageNoPreview     func(int64, string, ...telego.ReplyMarkup)
-	Translate                func(string, ...string) string
 	RandomClientEmail        func(int) string
 	ShowRegistrationPrompt   func(int64)
 	SendSubscriptionLinks    func(int64, string)

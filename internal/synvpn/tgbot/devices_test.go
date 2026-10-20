@@ -29,7 +29,6 @@ func TestShowDevicesRefusesForeignClient(t *testing.T) {
 		SendMessage: func(int64, string, ...telego.ReplyMarkup) {
 			sent = true
 		},
-		Translate: func(string, ...string) string { return "error" },
 	}
 
 	flow.ShowDevices(1, 42, "foreign@example.com")

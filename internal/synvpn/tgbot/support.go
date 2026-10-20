@@ -25,9 +25,12 @@ func (f *Flow) SendSupportRequest(userID int64, displayName, message string, med
 	keyboard := tu.InlineKeyboard(tu.InlineKeyboardRow(
 		tu.InlineKeyboardButton("Ответить").WithCallbackData(callback),
 	))
-	f.SendToAdmins(text, keyboard)
 	if len(mediaIDs) > 0 && f.SendSupportMediaToAdmins != nil {
+		f.SendToAdmins(text)
 		f.SendSupportMediaToAdmins(userID, mediaIDs)
+		f.SendToAdmins("↩️ Ответить на обращение:", keyboard)
+	} else {
+		f.SendToAdmins(text, keyboard)
 	}
 	f.SendMessage(userID, "Сообщение передано администраторам. Ответ придёт сюда.", supportBackToMenuKeyboard())
 }
@@ -42,17 +45,24 @@ func (f *Flow) SendSupportReply(adminChatID, userID int64, message string, media
 		f.SendMessage(adminChatID, "Ответ не может быть пустым. Введите текст или приложите скриншот ещё раз.")
 		return
 	}
-	if len(mediaIDs) > 0 && f.CopySupportMedia != nil {
-		if err := f.CopySupportMedia(adminChatID, userID, mediaIDs); err != nil {
-			f.SendMessage(adminChatID, "Не удалось отправить вложение пользователю. Попробуйте ещё раз.")
-			return
-		}
-	}
 	text := "💬 Ответ тех. поддержки:"
 	if message != "" {
 		text += "\n\n" + html.EscapeString(message)
 	}
-	f.SendMessage(userID, text, supportBackToMenuKeyboard())
+	if len(mediaIDs) > 0 {
+		f.SendMessage(userID, text)
+		if f.CopySupportMedia == nil {
+			f.SendMessage(adminChatID, "Не удалось отправить вложение пользователю. Попробуйте ещё раз.")
+			return
+		}
+		if err := f.CopySupportMedia(adminChatID, userID, mediaIDs); err != nil {
+			f.SendMessage(adminChatID, "Не удалось отправить вложение пользователю. Попробуйте ещё раз.")
+			return
+		}
+		f.SendMessage(userID, "Ответ отправлен.", supportBackToMenuKeyboard())
+	} else {
+		f.SendMessage(userID, text, supportBackToMenuKeyboard())
+	}
 	f.SendMessage(adminChatID, "Ответ отправлен пользователю.")
 }
 

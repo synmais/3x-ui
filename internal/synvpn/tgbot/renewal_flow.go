@@ -26,7 +26,7 @@ func (f *Flow) StartOwnRenewal(chatID int64, user telego.User) {
 func (f *Flow) StartRenewal(chatID int64, user telego.User, email string) {
 	traffics, err := f.InboundService.GetClientTrafficTgBot(user.ID)
 	if err != nil {
-		f.SendMessage(chatID, f.Translate("tgbot.answers.errorOperation"))
+		f.SendMessage(chatID, "❗ Ошибка в операции.")
 		return
 	}
 	owned := false
@@ -37,7 +37,7 @@ func (f *Flow) StartRenewal(chatID int64, user telego.User, email string) {
 		}
 	}
 	if !owned {
-		f.SendMessage(chatID, f.Translate("tgbot.answers.errorOperation"))
+		f.SendMessage(chatID, "❗ Ошибка в операции.")
 		return
 	}
 	f.StartPurchase(chatID, user, synvpn.PurchaseRenew, email)

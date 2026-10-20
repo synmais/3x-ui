@@ -51,6 +51,8 @@ const (
 
 var errClientHwidWriteNotSerialized = errors.New("client HWID write requires the serialized transaction")
 
+var clientDeviceLimitEventLimiter = eventbus.NewRateLimiter(time.Hour)
+
 type ClientHwidInfo struct {
 	Id          int    `json:"id"`
 	FirstSeen   int64  `json:"firstSeen"`
@@ -189,13 +191,26 @@ func (s *ClientService) EnforceHwidForSubID(subID string, req HwidRequest) (Hwid
 		res.LimitReached = res.Registered >= limit
 		return nil
 	})
-	if err == nil && newDevice && eventBus != nil {
-		publishClientDeviceAdded(db, subID, res.Registered, res.Limit)
+	if err == nil && eventBus != nil {
+		if newDevice {
+			publishClientDeviceAdded(db, subID, res.Registered, res.Limit)
+		}
+		if res.MaxDevicesReached && clientDeviceLimitEventLimiter.Allow(eventbus.EventClientDeviceLimit, subID) {
+			publishClientDeviceLimitReached(db, subID, res.Registered, res.Limit)
+		}
 	}
 	return res, err
 }
 
 func publishClientDeviceAdded(db *gorm.DB, subID string, registered, limit int) {
+	publishClientDeviceEvent(db, subID, registered, limit, eventbus.EventClientDeviceAdded)
+}
+
+func publishClientDeviceLimitReached(db *gorm.DB, subID string, registered, limit int) {
+	publishClientDeviceEvent(db, subID, registered, limit, eventbus.EventClientDeviceLimit)
+}
+
+func publishClientDeviceEvent(db *gorm.DB, subID string, registered, limit int, eventType eventbus.EventType) {
 	var records []model.ClientRecord
 	if err := db.Where("sub_id = ? AND enable = ? AND tg_id <> 0", subID, true).Find(&records).Error; err != nil {
 		logger.Warning("load subscriber for new device notification failed:", err)
@@ -208,7 +223,7 @@ func publishClientDeviceAdded(db *gorm.DB, subID string, registered, limit int) 
 		}
 		seen[record.TgID] = true
 		eventBus.Publish(eventbus.Event{
-			Type:   eventbus.EventClientDeviceAdded,
+			Type:   eventType,
 			Source: record.Email,
 			Data: &eventbus.ClientDeviceData{
 				TelegramID: record.TgID,

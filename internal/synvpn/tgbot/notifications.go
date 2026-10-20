@@ -40,6 +40,18 @@ func (f *Flow) NotifyNewDevice(telegramID int64, email string, registered, limit
 	f.SendMessage(telegramID, message, keyboard)
 }
 
+func (f *Flow) NotifyDeviceLimitReached(telegramID int64, email string, registered, limit int) {
+	if telegramID == 0 {
+		return
+	}
+	message := fmt.Sprintf("⛔ Достигнут лимит устройств по подписке <b>%s</b>: %d/%d.\nУдалите ненужное устройство, чтобы подключить новое.",
+		html.EscapeString(email), registered, limit)
+	keyboard := tu.InlineKeyboard(tu.InlineKeyboardRow(
+		tu.InlineKeyboardButton("📱 Управление устройствами").WithCallbackData(f.callback("client_devices " + email)),
+	))
+	f.SendMessage(telegramID, message, keyboard)
+}
+
 func (f *Flow) NotifySubscribers() {
 	if f.ListSubscriptions == nil {
 		return

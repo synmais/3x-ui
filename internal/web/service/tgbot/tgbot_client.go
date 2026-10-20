@@ -240,10 +240,10 @@ func (t *Tgbot) sendClientSubLinks(chatId int64, email string, window ...*client
 			tu.InlineKeyboardButton(t.I18nBot("qrCode")).WithCallbackData(t.encodeQuery("client_qr_links "+email)),
 		),
 		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.renewSubscription")).WithCallbackData("client_renew "+email),
+			tu.InlineKeyboardButton("🔄 Продлить подписку").WithCallbackData("client_renew "+email),
 		),
 		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.addSubscription")).WithCallbackData("client_add_subscription"),
+			tu.InlineKeyboardButton("➕ Добавить подписку").WithCallbackData("client_add_subscription"),
 		),
 	)
 	if len(window) > 0 && window[0] != nil {

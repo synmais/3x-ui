@@ -1021,6 +1021,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			clientWindow.cancel()
 			t.clearPurchase(chatId)
 			userStateMgr.clear(actor)
+			t.showMainMenu(chatId, false)
 			t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
 			return
 		case "client_window_cancel":

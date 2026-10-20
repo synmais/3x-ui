@@ -2611,9 +2611,7 @@
       "change_email": "⚙️📧 Email",
       "change_comment": "⚙️💬 Comment",
       "ResetAllTraffics": "Reset All Traffic",
-      "SortedTrafficUsageReport": "Sorted Traffic Usage Report",
-      "renewSubscription": "🔄 Renew subscription",
-      "addSubscription": "➕ Add subscription"
+      "SortedTrafficUsageReport": "Sorted Traffic Usage Report"
     },
     "answers": {
       "broadcastStarted": "🚀 Broadcast started.",

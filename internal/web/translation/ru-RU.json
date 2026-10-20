@@ -2611,9 +2611,7 @@
       "change_email": "⚙️📧 Email",
       "change_comment": "⚙️💬 Комментарий",
       "ResetAllTraffics": "Сбросить весь трафик",
-      "SortedTrafficUsageReport": "Отсортированный отчет об использовании трафика",
-      "renewSubscription": "🔄 Продлить подписку",
-      "addSubscription": "➕ Добавить подписку"
+      "SortedTrafficUsageReport": "Отсортированный отчет об использовании трафика"
     },
     "answers": {
       "broadcastStarted": "🚀 Рассылка запущена.",

@@ -44,7 +44,6 @@ func (t *Tgbot) synvpnFlow(window ...*clientWindowRenderer) *synvpntgbot.Flow {
 		},
 		CopySupportMedia:       copySupportMessages,
 		SendMessageNoPreview:   t.SendMsgToTgbotNoPreview,
-		Translate:              t.I18nBot,
 		RandomClientEmail:      t.randomLowerAndNum,
 		ShowRegistrationPrompt: showRegistrationPrompt,
 		SendSubscriptionLinks:  func(chatID int64, email string) { t.sendClientSubLinks(chatID, email) },

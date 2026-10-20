@@ -25,7 +25,7 @@ type Device struct {
 func (f *Flow) ShowOwnDevices(chatID, tgUserID int64) {
 	traffics, err := f.InboundService.GetClientTrafficTgBot(tgUserID)
 	if err != nil {
-		f.SendMessage(chatID, f.Translate("tgbot.answers.errorOperation"))
+		f.SendMessage(chatID, "❗ Ошибка в операции.")
 		return
 	}
 	if len(traffics) == 0 {
@@ -47,13 +47,13 @@ func (f *Flow) ShowOwnDevices(chatID, tgUserID int64) {
 
 func (f *Flow) ShowDevices(chatID, tgUserID int64, email string) {
 	if !f.ownsClient(tgUserID, email) {
-		f.SendMessage(chatID, f.Translate("tgbot.answers.errorOperation"))
+		f.SendMessage(chatID, "❗ Ошибка в операции.")
 		return
 	}
 
 	devices, limit, err := f.listDevices(email)
 	if err != nil {
-		f.SendMessage(chatID, f.Translate("tgbot.answers.errorOperation"))
+		f.SendMessage(chatID, "❗ Ошибка в операции.")
 		return
 	}
 
@@ -77,12 +77,12 @@ func (f *Flow) ShowDevices(chatID, tgUserID int64, email string) {
 
 func (f *Flow) ShowDevice(chatID, tgUserID int64, email string, id int) {
 	if !f.ownsClient(tgUserID, email) {
-		f.SendMessage(chatID, f.Translate("tgbot.answers.errorOperation"))
+		f.SendMessage(chatID, "❗ Ошибка в операции.")
 		return
 	}
 	devices, _, err := f.listDevices(email)
 	if err != nil {
-		f.SendMessage(chatID, f.Translate("tgbot.answers.errorOperation"))
+		f.SendMessage(chatID, "❗ Ошибка в операции.")
 		return
 	}
 	for _, device := range devices {
@@ -114,12 +114,12 @@ func (f *Flow) ShowDevice(chatID, tgUserID int64, email string, id int) {
 		f.SendMessage(chatID, message, keyboard)
 		return
 	}
-	f.SendMessage(chatID, f.Translate("tgbot.answers.errorOperation"))
+	f.SendMessage(chatID, "❗ Ошибка в операции.")
 }
 
 func (f *Flow) ConfirmDeviceDelete(chatID, tgUserID int64, email string, id int) {
 	if !f.ownsClient(tgUserID, email) {
-		f.SendMessage(chatID, f.Translate("tgbot.answers.errorOperation"))
+		f.SendMessage(chatID, "❗ Ошибка в операции.")
 		return
 	}
 	keyboard := tu.InlineKeyboard(
@@ -133,11 +133,11 @@ func (f *Flow) ConfirmDeviceDelete(chatID, tgUserID int64, email string, id int)
 
 func (f *Flow) DeleteDevice(chatID, tgUserID int64, email string, id int) {
 	if !f.ownsClient(tgUserID, email) {
-		f.SendMessage(chatID, f.Translate("tgbot.answers.errorOperation"))
+		f.SendMessage(chatID, "❗ Ошибка в операции.")
 		return
 	}
 	if err := f.DeleteDeviceByEmail(email, id); err != nil {
-		f.SendMessage(chatID, f.Translate("tgbot.answers.errorOperation"))
+		f.SendMessage(chatID, "❗ Ошибка в операции.")
 		return
 	}
 	f.ShowDevices(chatID, tgUserID, email)
