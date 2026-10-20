@@ -64,6 +64,16 @@ func (t *Tgbot) clientWindowForCallback(actor chatUser, sourceMessageID int) *cl
 	return &clientWindowRenderer{t: t, actor: actor, source: sourceMessageID, window: window}
 }
 
+func (t *Tgbot) resetClientWindow(actor chatUser) {
+	clientWindows.Lock()
+	window := clientWindows.items[actor]
+	clientWindows.Unlock()
+	if window == nil {
+		return
+	}
+	(&clientWindowRenderer{t: t, actor: actor, window: window}).cancel()
+}
+
 func (r *clientWindowRenderer) send(chatID int64, text string, markup ...telego.ReplyMarkup) {
 	if text == "" || !r.t.IsRunning() {
 		return
@@ -195,6 +205,20 @@ func (r *clientWindowRenderer) render(screen clientScreen, push bool) {
 	}
 	if _, err := bot.EditMessageText(context.Background(), &params); err != nil && !isTelegramNotModifiedError(err) {
 		logger.Warning("Failed to update client bot screen:", err)
+		if isTelegramUnavailableEditError(err) {
+			message, sendErr := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID: tu.ID(r.actor.chatID), Text: screen.text, ParseMode: "HTML",
+				ReplyMarkup: r.navigation(screen.markup, len(w.back) > 0),
+			})
+			if sendErr != nil {
+				logger.Warning("Failed to recreate client bot screen:", sendErr)
+				return
+			}
+			w.message = message.MessageID
+			w.current = screen
+			w.revision++
+			return
+		}
 		return
 	}
 	w.current = screen

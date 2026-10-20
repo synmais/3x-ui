@@ -309,6 +309,16 @@ func isTelegramNotModifiedError(err error) bool {
 		strings.Contains(errStr, "No fields to modify")
 }
 
+func isTelegramUnavailableEditError(err error) bool {
+	if err == nil {
+		return false
+	}
+	description := strings.ToLower(err.Error())
+	return strings.Contains(description, "message to edit not found") ||
+		strings.Contains(description, "message can't be edited") ||
+		strings.Contains(description, "message cannot be edited")
+}
+
 // SendMsgToTgbotDeleteAfter sends a message and deletes it after a specified delay.
 func (t *Tgbot) SendMsgToTgbotDeleteAfter(chatId int64, msg string, delayInSeconds int, replyMarkup ...telego.ReplyMarkup) {
 	// Determine if replyMarkup was passed; otherwise, set it to nil

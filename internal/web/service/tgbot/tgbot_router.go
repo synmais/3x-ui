@@ -240,6 +240,12 @@ func (t *Tgbot) answerCommand(message *telego.Message, chatId int64, isAdmin boo
 		msg += t.I18nBot("tgbot.commands.help")
 		msg += t.I18nBot("tgbot.commands.pleaseChoose")
 	case "start":
+		if !isAdmin {
+			actor := messageActor(*message)
+			t.resetClientWindow(actor)
+			t.clearPurchase(chatId)
+			userStateMgr.clear(actor)
+		}
 		if len(commandArgs) > 0 {
 			if !isAdmin && !t.allowInviteAttempt(message.From) {
 				t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.messages.inviteRateLimited"))
