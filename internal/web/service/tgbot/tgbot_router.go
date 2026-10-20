@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	synvpntgbot "github.com/mhsanaei/3x-ui/v3/internal/synvpn/tgbot"
 
 	"github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
@@ -1033,6 +1034,18 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		}
 	}
 
+	if strings.HasPrefix(callbackQuery.Data, "client_instruction") {
+		if clientWindow != nil {
+			if page, ok := synvpntgbot.InstructionPageForCallback(callbackQuery.Data); ok {
+				t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
+				clientWindow.sendInstruction(chatId, page)
+				return
+			}
+		}
+		t.sendCallbackAnswerTgBot(callbackQuery.ID, "Инструкция не найдена")
+		return
+	}
+
 	switch callbackQuery.Data {
 	case "get_usage":
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.serverUsage"))
@@ -1564,6 +1577,9 @@ func isClientSelfCallback(data string) bool {
 		return true
 	}
 	if strings.HasPrefix(data, "register_period_") || strings.HasPrefix(data, "subscription_period_") {
+		return true
+	}
+	if strings.HasPrefix(data, "client_instruction") {
 		return true
 	}
 	return strings.HasPrefix(data, "client_traffic ") ||

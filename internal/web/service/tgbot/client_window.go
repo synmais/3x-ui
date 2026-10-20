@@ -2,26 +2,32 @@ package tgbot
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"sync"
 	"time"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	synvpntgbot "github.com/mhsanaei/3x-ui/v3/internal/synvpn/tgbot"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
 )
 
 type clientScreen struct {
-	text   string
-	markup *telego.InlineKeyboardMarkup
+	text         string
+	markup       *telego.InlineKeyboardMarkup
+	mediaKey     string
+	mediaCaption string
 }
 
 type clientWindow struct {
-	mu        sync.Mutex
-	message   int
-	current   clientScreen
-	back      []clientScreen
-	revision  uint64
-	paymentID string
+	mu          sync.Mutex
+	message     int
+	attachments []int
+	current     clientScreen
+	back        []clientScreen
+	revision    uint64
+	paymentID   string
 }
 
 type clientWindowRenderer struct {
@@ -69,6 +75,20 @@ func (r *clientWindowRenderer) send(chatID int64, text string, markup ...telego.
 	r.render(clientScreen{text: text, markup: inline}, true)
 }
 
+func (r *clientWindowRenderer) sendInstruction(chatID int64, page synvpntgbot.InstructionPage) {
+	if !r.t.IsRunning() {
+		return
+	}
+	markup := instructionKeyboard(page.Buttons)
+	screen := clientScreen{text: page.Text, markup: markup}
+	if page.Guide != nil {
+		screen.text = "📘 <b>" + page.Guide.Title + "</b>"
+		screen.mediaKey = page.Guide.ID
+		screen.mediaCaption = page.Guide.Title + "\n\n" + page.Guide.Description
+	}
+	r.render(screen, true)
+}
+
 func (r *clientWindowRenderer) render(screen clientScreen, push bool) {
 	w := r.window
 	w.mu.Lock()
@@ -78,9 +98,87 @@ func (r *clientWindowRenderer) render(screen clientScreen, push bool) {
 		if !push {
 			return
 		}
+		if screen.mediaKey != "" {
+			attachments, err := sendClientInstructionMedia(r.actor.chatID, screen.mediaKey, screen.mediaCaption)
+			if err != nil {
+				if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, errNoInstructionScreenshots) {
+					logger.Warning("Failed to send client instruction screenshots:", err)
+				}
+				screen.text = screen.mediaCaption + "\n\nСкриншоты пока не загружены."
+				screen.mediaKey = ""
+			} else {
+				w.attachments = attachments
+			}
+		}
 		message, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID: tu.ID(r.actor.chatID), Text: screen.text, ParseMode: "HTML",
 			ReplyMarkup: r.navigation(screen.markup, false),
+		})
+		if err != nil {
+			for _, messageID := range w.attachments {
+				r.t.deleteMessageTgBot(r.actor.chatID, messageID)
+			}
+			w.attachments = nil
+			logger.Warning("Failed to open client bot screen:", err)
+			return
+		}
+		w.message, w.current = message.MessageID, screen
+		w.revision++
+		return
+	}
+	if push && (screen.text != w.current.text || screen.mediaKey != w.current.mediaKey || !sameKeyboard(screen.markup, w.current.markup)) {
+		w.back = append(w.back, w.current)
+	}
+	if screen.mediaKey != w.current.mediaKey {
+		var newAttachments []int
+		if screen.mediaKey != "" {
+			attachments, err := sendClientInstructionMedia(r.actor.chatID, screen.mediaKey, screen.mediaCaption)
+			if err != nil {
+				if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, errNoInstructionScreenshots) {
+					logger.Warning("Failed to send client instruction screenshots:", err)
+				}
+				screen.text = screen.mediaCaption + "\n\nСкриншоты пока не загружены."
+				screen.mediaKey = ""
+			} else {
+				newAttachments = attachments
+			}
+		}
+		if screen.mediaKey != "" {
+			message, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID: tu.ID(r.actor.chatID), Text: screen.text, ParseMode: "HTML",
+				ReplyMarkup: r.navigation(screen.markup, len(w.back) > 0),
+			})
+			if err != nil {
+				for _, messageID := range newAttachments {
+					r.t.deleteMessageTgBot(r.actor.chatID, messageID)
+				}
+				logger.Warning("Failed to open client instruction controls:", err)
+				return
+			}
+			oldMessage, oldAttachments := w.message, w.attachments
+			if oldMessage != 0 {
+				r.t.deleteMessageTgBot(r.actor.chatID, oldMessage)
+			}
+			for _, messageID := range oldAttachments {
+				r.t.deleteMessageTgBot(r.actor.chatID, messageID)
+			}
+			w.message = message.MessageID
+			w.attachments = newAttachments
+			w.current = screen
+			w.revision++
+			return
+		}
+	}
+	if len(w.attachments) > 0 && screen.mediaKey == "" {
+		for _, messageID := range w.attachments {
+			r.t.deleteMessageTgBot(r.actor.chatID, messageID)
+		}
+		w.attachments = nil
+	}
+	if w.message == 0 {
+		message, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			ChatID: tu.ID(r.actor.chatID), Text: screen.text, ParseMode: "HTML",
+			ReplyMarkup: r.navigation(screen.markup, len(w.back) > 0),
 		})
 		if err != nil {
 			logger.Warning("Failed to open client bot screen:", err)
@@ -89,9 +187,6 @@ func (r *clientWindowRenderer) render(screen clientScreen, push bool) {
 		w.message, w.current = message.MessageID, screen
 		w.revision++
 		return
-	}
-	if push && (screen.text != w.current.text || !sameKeyboard(screen.markup, w.current.markup)) {
-		w.back = append(w.back, w.current)
 	}
 	markup := r.navigation(screen.markup, len(w.back) > 0)
 	params := telego.EditMessageTextParams{
@@ -216,6 +311,7 @@ func (r *clientWindowRenderer) cancel() {
 	w := r.window
 	w.mu.Lock()
 	messageID := w.message
+	attachments := w.attachments
 	paymentID := w.paymentID
 	w.message = 0
 	w.current = clientScreen{}
@@ -229,5 +325,8 @@ func (r *clientWindowRenderer) cancel() {
 	clientWindows.Unlock()
 	if messageID != 0 {
 		r.t.deleteMessageTgBot(r.actor.chatID, messageID)
+	}
+	for _, attachmentID := range attachments {
+		r.t.deleteMessageTgBot(r.actor.chatID, attachmentID)
 	}
 }
