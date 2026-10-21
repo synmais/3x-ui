@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
+	synvpntgbot "github.com/mhsanaei/3x-ui/v3/internal/synvpn/tgbot"
 
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
@@ -73,6 +74,15 @@ func (t *Tgbot) SendAnswer(chatId int64, msg string, isAdmin bool) {
 		ReplyMarkup = numericKeyboard
 	} else {
 		ReplyMarkup = numericKeyboardClient
+		params := telego.SendPhotoParams{
+			ChatID: tu.ID(chatId), Photo: tu.FileFromBytes(synvpntgbot.MainMenuBanner(), "main-menu-banner.jpg"),
+			Caption: msg, ParseMode: "HTML", ReplyMarkup: ReplyMarkup,
+		}
+		if _, err := bot.SendPhoto(context.Background(), &params); err != nil {
+			logger.Warning("Failed to send client bot menu banner:", err)
+			t.SendMsgToTgbot(chatId, msg, ReplyMarkup)
+		}
+		return
 	}
 	t.SendMsgToTgbot(chatId, msg, ReplyMarkup)
 }

@@ -74,7 +74,8 @@ func (t *Tgbot) gateCallback(query *telego.CallbackQuery) (isAdmin bool, ok bool
 }
 
 func isStrangerRegistrationCallback(data string) bool {
-	if data == "subscription_confirm" || data == "subscription_cancel" {
+	switch data {
+	case "register_user", "register_cancel", "subscription_confirm", "subscription_cancel", "client_window_back", "client_window_cancel":
 		return true
 	}
 	return strings.HasPrefix(data, "subscription_tariff_") || strings.HasPrefix(data, "subscription_period_")

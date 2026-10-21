@@ -54,6 +54,10 @@ func (t *Tgbot) clientWindowForCallback(actor chatUser, sourceMessageID int) *cl
 	if sourceMessageID == 0 {
 		return &clientWindowRenderer{t: t, actor: actor, source: sourceMessageID, window: &clientWindow{}}
 	}
+	return t.clientWindowForActor(actor, sourceMessageID)
+}
+
+func (t *Tgbot) clientWindowForActor(actor chatUser, sourceMessageID int) *clientWindowRenderer {
 	clientWindows.Lock()
 	window := clientWindows.items[actor]
 	if window == nil {

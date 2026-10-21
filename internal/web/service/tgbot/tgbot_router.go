@@ -254,7 +254,8 @@ func (t *Tgbot) answerCommand(message *telego.Message, chatId int64, isAdmin boo
 			t.claimInvite(chatId, message.From.ID, commandArgs[0])
 		}
 		if !isAdmin && t.levelOf(message.From.ID) == levelStranger {
-			t.startRegistration(chatId, *message.From)
+			window := t.clientWindowForActor(messageActor(*message), -1)
+			t.startRegistration(chatId, *message.From, window)
 			return
 		}
 		msg += t.I18nBot("tgbot.commands.start", "Firstname=="+html.EscapeString(message.From.FirstName))
