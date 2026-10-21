@@ -32,15 +32,16 @@ func (f *Flow) ProcessYooMoneyPayment(payment *model.Payment) error {
 	}
 
 	message := "🎉 <b>Оплата получена!</b>\n\n" +
-		"📱 <b>Рекомендуемые приложения:</b>\n" +
-		"<a href=\"https://happ.info/\">Happ</a>\n" +
+		"📱 <b>Рекомендуемые приложения:</b>\n\n" +
+		"<a href=\"https://happ.info/\">Happ</a> (временно недоступен в российском App Store)\n" +
 		"(iOS / Android / Windows / Linux / macOS)\n\n" +
 		"<a href=\"https://incy.app/\">INCY</a>\n" +
 		"(iOS / Android / Windows / Linux / macOS)\n\n" +
 		"<a href=\"https://clashmi.app/download\">Clash Mi</a>\n" +
 		"(iOS / Android / ATV / Windows / Linux / macOS)\n\n" +
 		"⚙️ Для Clash Mi при добавлении подписки не забудьте включить переключатель <b>X-HWID</b>.\n\n" +
-		"🔗 <b>Ниже — ссылка на вашу подписку.</b>"
+		"🔗 <b>Ниже — ссылка на вашу подписку.</b>\n" +
+		"(нажмите, чтобы скопировать)"
 
 	f.SendMessageNoPreview(payment.TgID, message)
 	f.SendSubscriptionLinks(payment.TgID, payment.ClientEmail)
