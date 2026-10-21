@@ -53,7 +53,12 @@ func (f *Flow) showRegistrationTariffs(chatID int64, user telego.User) {
 	if name := html.EscapeString(user.FirstName); name != "" {
 		prompt = fmt.Sprintf("👋 <i>%s</i>, добро пожаловать!\n\nДля продолжения выберите тариф:", name)
 	}
-	f.SendMessage(chatID, prompt, tu.InlineKeyboardGrid(tu.InlineKeyboardCols(1, buttons...)))
+	keyboard := tu.InlineKeyboardGrid(tu.InlineKeyboardCols(1, buttons...))
+	if f.SendRegistrationMessage != nil {
+		f.SendRegistrationMessage(chatID, prompt, keyboard)
+		return
+	}
+	f.SendMessage(chatID, prompt, keyboard)
 }
 
 func (f *Flow) showRegistrationPromo(chatID int64, user telego.User) {

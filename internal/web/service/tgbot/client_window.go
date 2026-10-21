@@ -18,6 +18,7 @@ type clientScreen struct {
 	markup       *telego.InlineKeyboardMarkup
 	mediaKey     string
 	mediaCaption string
+	photo        bool
 }
 
 type clientWindow struct {
@@ -89,6 +90,17 @@ func (r *clientWindowRenderer) send(chatID int64, text string, markup ...telego.
 	r.render(clientScreen{text: text, markup: inline}, true)
 }
 
+func (r *clientWindowRenderer) sendBanner(chatID int64, text string, markup ...telego.ReplyMarkup) {
+	if text == "" || !r.t.IsRunning() {
+		return
+	}
+	var inline *telego.InlineKeyboardMarkup
+	if len(markup) > 0 {
+		inline, _ = markup[0].(*telego.InlineKeyboardMarkup)
+	}
+	r.render(clientScreen{text: text, markup: inline, photo: true}, true)
+}
+
 func (r *clientWindowRenderer) sendInstruction(chatID int64, page synvpntgbot.InstructionPage) {
 	if !r.t.IsRunning() {
 		return
@@ -142,6 +154,27 @@ func (r *clientWindowRenderer) render(screen clientScreen, push bool) {
 			}
 			return
 		}
+		if screen.photo {
+			message, err := bot.SendPhoto(context.Background(), &telego.SendPhotoParams{
+				ChatID: tu.ID(r.actor.chatID), Photo: tu.FileFromBytes(synvpntgbot.MainMenuBanner(), "main-menu-banner.jpg"),
+				Caption: screen.text, ParseMode: "HTML", ReplyMarkup: r.navigation(screen.markup, false),
+			})
+			if err != nil {
+				logger.Warning("Failed to open client bot screen with banner:", err)
+				screen.photo = false
+				message, err = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+					ChatID: tu.ID(r.actor.chatID), Text: screen.text, ParseMode: "HTML",
+					ReplyMarkup: r.navigation(screen.markup, false),
+				})
+				if err != nil {
+					logger.Warning("Failed to open client bot screen:", err)
+					return
+				}
+			}
+			w.message, w.current = message.MessageID, screen
+			w.revision++
+			return
+		}
 		message, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID: tu.ID(r.actor.chatID), Text: screen.text, ParseMode: "HTML",
 			ReplyMarkup: r.navigation(screen.markup, false),
@@ -154,8 +187,49 @@ func (r *clientWindowRenderer) render(screen clientScreen, push bool) {
 		w.revision++
 		return
 	}
-	if push && (screen.text != w.current.text || screen.mediaKey != w.current.mediaKey || !sameKeyboard(screen.markup, w.current.markup)) {
+	if push && (screen.text != w.current.text || screen.mediaKey != w.current.mediaKey || screen.photo != w.current.photo || !sameKeyboard(screen.markup, w.current.markup)) {
 		w.back = append(w.back, w.current)
+	}
+	if screen.mediaKey == "" && screen.photo != w.current.photo {
+		var messageID int
+		if screen.photo {
+			message, err := bot.SendPhoto(context.Background(), &telego.SendPhotoParams{
+				ChatID: tu.ID(r.actor.chatID), Photo: tu.FileFromBytes(synvpntgbot.MainMenuBanner(), "main-menu-banner.jpg"),
+				Caption: screen.text, ParseMode: "HTML", ReplyMarkup: r.navigation(screen.markup, len(w.back) > 0),
+			})
+			if err != nil {
+				logger.Warning("Failed to reopen client bot banner screen:", err)
+				screen.photo = false
+				message, err = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+					ChatID: tu.ID(r.actor.chatID), Text: screen.text, ParseMode: "HTML",
+					ReplyMarkup: r.navigation(screen.markup, len(w.back) > 0),
+				})
+				if err != nil {
+					logger.Warning("Failed to reopen client bot screen:", err)
+					return
+				}
+			}
+			messageID = message.MessageID
+		} else {
+			message, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID: tu.ID(r.actor.chatID), Text: screen.text, ParseMode: "HTML",
+				ReplyMarkup: r.navigation(screen.markup, len(w.back) > 0),
+			})
+			if err != nil {
+				logger.Warning("Failed to replace client bot banner screen:", err)
+				return
+			}
+			messageID = message.MessageID
+		}
+		if w.message != 0 {
+			r.t.deleteMessageTgBot(r.actor.chatID, w.message)
+		}
+		for _, attachmentID := range w.attachments {
+			r.t.deleteMessageTgBot(r.actor.chatID, attachmentID)
+		}
+		w.message, w.attachments, w.current = messageID, nil, screen
+		w.revision++
+		return
 	}
 	if screen.mediaKey != w.current.mediaKey {
 		var newAttachments []int

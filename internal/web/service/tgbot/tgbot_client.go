@@ -338,55 +338,65 @@ func (t *Tgbot) sendClientQRLinks(chatId int64, email string, window ...*clientW
 		return qrcode.Encode(content, qrcode.Medium, size)
 	}
 
-	// Inform user
-	if len(window) > 0 && window[0] != nil {
-		t.sendClientWindowWithMarkup(chatId, t.I18nBot("tgbot.answers.qrCodeForClient", "Email=="+email), window[0], clientBackToMenuKeyboard())
-	} else {
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.qrCodeForClient", "Email=="+email))
+	type qrDocument struct {
+		filename string
+		content  []byte
 	}
-
-	// Send sub URL QR (filename: sub.png)
-	if png, err := createQR(subURL, 320); err == nil {
-		document := tu.Document(
-			tu.ID(chatId),
-			tu.FileFromBytes(png, "sub.png"),
-		)
-		_, _ = bot.SendDocument(context.Background(), document)
-	} else {
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error())
+	documents := make([]qrDocument, 0, 7)
+	appendQR := func(content, filename string) {
+		png, err := createQR(content, 320)
+		if err != nil {
+			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error())
+			return
+		}
+		documents = append(documents, qrDocument{filename: filename, content: png})
 	}
+	appendQR(subURL, "sub.png")
 
 	// Send JSON URL QR (filename: subjson.png) when available
 	if subJsonURL != "" {
-		if png, err := createQR(subJsonURL, 320); err == nil {
-			document := tu.Document(
-				tu.ID(chatId),
-				tu.FileFromBytes(png, "subjson.png"),
-			)
-			_, _ = bot.SendDocument(context.Background(), document)
-		} else {
-			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error())
-		}
+		appendQR(subJsonURL, "subjson.png")
 	}
 
 	// Also generate a few individual links' QRs (first up to 5)
 	if links, err := t.clientSubLinks(email, subURL); err == nil {
 		max := min(len(links), 5)
 		for i := range max {
-			if png, err := createQR(links[i], 320); err == nil {
-				// Use the email as filename for individual link QR
-				filename := email + ".png"
-				document := tu.Document(
-					tu.ID(chatId),
-					tu.FileFromBytes(png, filename),
-				)
-				_, _ = bot.SendDocument(context.Background(), document)
-				// Reduced delay for better performance
-				if i < max-1 { // Only delay between documents, not after the last one
-					time.Sleep(50 * time.Millisecond)
-				}
-			}
+			appendQR(links[i], email+".png")
 		}
+	}
+
+	hasClientWindow := len(window) > 0 && window[0] != nil
+	if hasClientWindow {
+		window[0].cancel()
+	}
+	t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.qrCodeForClient", "Email=="+email))
+	if len(documents) == 0 {
+		if hasClientWindow {
+			t.SendMsgToTgbot(chatId, "Не удалось подготовить QR-коды.", clientBackToMenuKeyboard())
+		} else {
+			t.SendMsgToTgbot(chatId, "Не удалось подготовить QR-коды.")
+		}
+		return
+	}
+	lastSent := false
+	for i, qr := range documents {
+		document := tu.Document(tu.ID(chatId), tu.FileFromBytes(qr.content, qr.filename))
+		if hasClientWindow && i == len(documents)-1 {
+			document.ReplyMarkup = clientBackToMenuKeyboard()
+		}
+		if _, err := bot.SendDocument(context.Background(), document); err == nil {
+			lastSent = i == len(documents)-1
+		} else {
+			lastSent = false
+			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error())
+		}
+		if i < len(documents)-1 {
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	if hasClientWindow && !lastSent {
+		t.SendMsgToTgbot(chatId, "QR-коды готовы.", clientBackToMenuKeyboard())
 	}
 }
 

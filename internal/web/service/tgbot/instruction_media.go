@@ -39,7 +39,8 @@ func instructionKeyboard(buttons []synvpntgbot.InstructionButton) *telego.Inline
 func sendClientInstructionMedia(chatID int64, instructionID, caption string) ([]int, error) {
 	var instruction *synvpntgbot.ClientInstruction
 	for _, callback := range []string{
-		"client_instruction_payment", "client_instruction_happ", "client_instruction_incy",
+		"client_instruction_payment", "client_instruction_renewal", "client_instruction_upgrade",
+		"client_instruction_happ", "client_instruction_incy",
 		"client_instruction_clash_mi", "client_instruction_server", "client_instruction_support",
 	} {
 		page, ok := synvpntgbot.InstructionPageForCallback(callback)

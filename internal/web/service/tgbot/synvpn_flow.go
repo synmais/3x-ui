@@ -21,7 +21,7 @@ func (t *Tgbot) synvpnFlow(window ...*clientWindowRenderer) *synvpntgbot.Flow {
 		sendMessage = window[0].send
 		showRegistrationPrompt = func(chatID int64) { t.showRegistrationPrompt(chatID, window[0]) }
 	}
-	return &synvpntgbot.Flow{
+	flow := &synvpntgbot.Flow{
 		ClientService:  &t.clientService,
 		InboundService: &t.inboundService,
 		SettingService: &t.settingService,
@@ -116,6 +116,10 @@ func (t *Tgbot) synvpnFlow(window ...*clientWindowRenderer) *synvpntgbot.Flow {
 			}
 		},
 	}
+	if len(window) > 0 && window[0] != nil {
+		flow.SendRegistrationMessage = window[0].sendBanner
+	}
+	return flow
 }
 
 func (t *Tgbot) askClientForSupport(actor chatUser, window ...*clientWindowRenderer) {

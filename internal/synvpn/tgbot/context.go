@@ -36,6 +36,7 @@ type Flow struct {
 	FulfillPayment func(*model.Payment) error
 
 	SendMessage              func(int64, string, ...telego.ReplyMarkup)
+	SendRegistrationMessage  func(int64, string, ...telego.ReplyMarkup)
 	SendToAdmins             func(string, ...telego.ReplyMarkup)
 	SendSupportMediaToAdmins func(int64, []int)
 	CopySupportMedia         func(int64, int64, []int) error

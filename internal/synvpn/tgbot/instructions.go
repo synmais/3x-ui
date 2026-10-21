@@ -29,10 +29,19 @@ func InstructionPageForCallback(callback string) (InstructionPage, bool) {
 		return InstructionPage{
 			Text: "📚 <b>Инструкции</b>\nВыберите тему:",
 			Buttons: []InstructionButton{
-				{Text: "💳 Оплата", Callback: "client_instruction_payment"},
+				{Text: "📦 Подписка", Callback: "client_instruction_subscription"},
 				{Text: "📲 Подключение", Callback: "client_instruction_connection"},
 				{Text: "🌐 Выбор сервера", Callback: "client_instruction_server"},
 				{Text: "🛟 Обращение в тех. поддержку", Callback: "client_instruction_support"},
+			},
+		}, true
+	case "client_instruction_subscription":
+		return InstructionPage{
+			Text: "📦 <b>Подписка</b>\nВыберите тему:",
+			Buttons: []InstructionButton{
+				{Text: "💳 Оплата", Callback: "client_instruction_payment"},
+				{Text: "🔄 Продление", Callback: "client_instruction_renewal"},
+				{Text: "⬆️ Улучшение тарифа", Callback: "client_instruction_upgrade"},
 			},
 		}, true
 	case "client_instruction_connection":
@@ -50,6 +59,14 @@ func InstructionPageForCallback(callback string) (InstructionPage, bool) {
 		"client_instruction_payment": {
 			ID: "payment", Title: "Оплата",
 			Description: "Выберите тариф и срок подписки, затем оплатите заказ удобным способом.",
+		},
+		"client_instruction_renewal": {
+			ID: "subscription/renewal", Title: "Продление подписки",
+			Description: "В меню «Подписка» нажмите «Продлить подписку», выберите тариф и срок, затем оплатите заказ.",
+		},
+		"client_instruction_upgrade": {
+			ID: "subscription/upgrade", Title: "Улучшение тарифа",
+			Description: "В меню «Подписка» выберите «Улучшить тариф», затем выберите подходящий тариф и срок.",
 		},
 		"client_instruction_happ": {
 			ID: "connection/happ", Title: "Подключение через Happ",
