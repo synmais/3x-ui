@@ -1036,9 +1036,24 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			clientWindow.cancel()
 			t.clearPurchase(chatId)
 			userStateMgr.clear(actor)
-			t.sendCallbackAnswerTgBot(callbackQuery.ID, "Отменено")
+			if t.levelOf(callbackQuery.From.ID) == levelStranger {
+				// A new user has no client menu to return to. Reopen registration
+				// tariff selection in a fresh window instead of leaving them with
+				// no message after they cancel a payment.
+				t.startRegistration(chatId, callbackQuery.From, t.clientWindowForActor(actor, 0))
+				t.sendCallbackAnswerTgBot(callbackQuery.ID, "Выберите тариф")
+			} else {
+				t.sendCallbackAnswerTgBot(callbackQuery.ID, "Отменено")
+			}
 			return
 		}
+	}
+	if callbackQuery.Data == "client_payment_fee_info" {
+		t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
+		if clientWindow != nil {
+			clientWindow.send(chatId, synvpntgbot.PaymentFeeInfoText)
+		}
+		return
 	}
 
 	if strings.HasPrefix(callbackQuery.Data, "client_instruction") {
@@ -1577,7 +1592,7 @@ func isClientSelfCallback(data string) bool {
 		return true
 	case "client_window_back", "client_window_cancel":
 		return true
-	case "client_window_home":
+	case "client_window_home", "client_payment_fee_info":
 		return true
 	}
 	if strings.HasPrefix(data, "register_tariff_") || strings.HasPrefix(data, "subscription_tariff_") {

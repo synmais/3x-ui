@@ -98,7 +98,7 @@ func (r *clientWindowRenderer) sendInstruction(chatID int64, page synvpntgbot.In
 	if page.Guide != nil {
 		screen.text = "📘 <b>" + page.Guide.Title + "</b>"
 		screen.mediaKey = page.Guide.ID
-		screen.mediaCaption = page.Guide.Title + "\n\n" + page.Guide.Description
+		screen.mediaCaption = page.Guide.Description
 	}
 	r.render(screen, true)
 }
@@ -113,26 +113,40 @@ func (r *clientWindowRenderer) render(screen clientScreen, push bool) {
 			return
 		}
 		if screen.mediaKey != "" {
-			attachments, err := sendClientInstructionMedia(r.actor.chatID, screen.mediaKey, screen.mediaCaption)
+			message, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID: tu.ID(r.actor.chatID), Text: screen.text, ParseMode: "HTML",
+				ReplyMarkup: r.navigation(screen.markup, false),
+			})
 			if err != nil {
-				if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, errNoInstructionScreenshots) {
-					logger.Warning("Failed to send client instruction screenshots:", err)
+				logger.Warning("Failed to open client bot screen:", err)
+				return
+			}
+			w.message, w.current = message.MessageID, screen
+			w.revision++
+			attachments, mediaErr := sendClientInstructionMedia(r.actor.chatID, screen.mediaKey, screen.mediaCaption)
+			if mediaErr != nil {
+				if !errors.Is(mediaErr, fs.ErrNotExist) && !errors.Is(mediaErr, errNoInstructionScreenshots) {
+					logger.Warning("Failed to send client instruction screenshots:", mediaErr)
 				}
-				screen.text = screen.mediaCaption + "\n\nСкриншоты пока не загружены."
+				screen.text += "\n\n" + screen.mediaCaption + "\n\nСкриншоты пока не загружены."
 				screen.mediaKey = ""
+				w.current = screen
+				if _, editErr := bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+					ChatID: tu.ID(r.actor.chatID), MessageID: w.message, Text: screen.text, ParseMode: "HTML",
+					ReplyMarkup: r.navigation(screen.markup, false),
+				}); editErr != nil && !isTelegramNotModifiedError(editErr) {
+					logger.Warning("Failed to update instruction without screenshots:", editErr)
+				}
 			} else {
 				w.attachments = attachments
 			}
+			return
 		}
 		message, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID: tu.ID(r.actor.chatID), Text: screen.text, ParseMode: "HTML",
 			ReplyMarkup: r.navigation(screen.markup, false),
 		})
 		if err != nil {
-			for _, messageID := range w.attachments {
-				r.t.deleteMessageTgBot(r.actor.chatID, messageID)
-			}
-			w.attachments = nil
 			logger.Warning("Failed to open client bot screen:", err)
 			return
 		}
@@ -146,18 +160,8 @@ func (r *clientWindowRenderer) render(screen clientScreen, push bool) {
 	if screen.mediaKey != w.current.mediaKey {
 		var newAttachments []int
 		if screen.mediaKey != "" {
-			attachments, err := sendClientInstructionMedia(r.actor.chatID, screen.mediaKey, screen.mediaCaption)
-			if err != nil {
-				if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, errNoInstructionScreenshots) {
-					logger.Warning("Failed to send client instruction screenshots:", err)
-				}
-				screen.text = screen.mediaCaption + "\n\nСкриншоты пока не загружены."
-				screen.mediaKey = ""
-			} else {
-				newAttachments = attachments
-			}
-		}
-		if screen.mediaKey != "" {
+			// Send the instruction title and controls first, so the album appears
+			// beneath its heading in the chat.
 			message, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
 				ChatID: tu.ID(r.actor.chatID), Text: screen.text, ParseMode: "HTML",
 				ReplyMarkup: r.navigation(screen.markup, len(w.back) > 0),
@@ -168,6 +172,20 @@ func (r *clientWindowRenderer) render(screen clientScreen, push bool) {
 				}
 				logger.Warning("Failed to open client instruction controls:", err)
 				return
+			}
+			newAttachments, err = sendClientInstructionMedia(r.actor.chatID, screen.mediaKey, screen.mediaCaption)
+			if err != nil {
+				if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, errNoInstructionScreenshots) {
+					logger.Warning("Failed to send client instruction screenshots:", err)
+				}
+				screen.text += "\n\n" + screen.mediaCaption + "\n\nСкриншоты пока не загружены."
+				screen.mediaKey = ""
+				if _, editErr := bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+					ChatID: tu.ID(r.actor.chatID), MessageID: message.MessageID, Text: screen.text, ParseMode: "HTML",
+					ReplyMarkup: r.navigation(screen.markup, len(w.back) > 0),
+				}); editErr != nil && !isTelegramNotModifiedError(editErr) {
+					logger.Warning("Failed to update instruction without screenshots:", editErr)
+				}
 			}
 			oldMessage, oldAttachments := w.message, w.attachments
 			if oldMessage != 0 {

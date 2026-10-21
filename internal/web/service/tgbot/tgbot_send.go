@@ -57,15 +57,15 @@ func (t *Tgbot) SendAnswer(chatId int64, msg string, isAdmin bool) {
 	)
 	numericKeyboardClient := tu.InlineKeyboard(
 		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.clientUsage")).WithCallbackData(t.encodeQuery("client_traffic")),
+			tu.InlineKeyboardButton("📊 Статистика").WithCallbackData(t.encodeQuery("client_traffic")),
 			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.devices")).WithCallbackData(t.encodeQuery("client_devices")),
 		),
 		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("pages.settings.subSettings")).WithCallbackData(t.encodeQuery("client_sub_links")),
+			tu.InlineKeyboardButton("📦 Подписка").WithCallbackData(t.encodeQuery("client_sub_links")),
 			tu.InlineKeyboardButton("📚 Инструкции").WithCallbackData("client_instructions"),
 		),
 		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton("Тех. поддержка").WithCallbackData("client_support"),
+			tu.InlineKeyboardButton("🛟 Тех. поддержка").WithCallbackData("client_support"),
 		),
 	)
 

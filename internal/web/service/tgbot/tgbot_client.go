@@ -339,7 +339,11 @@ func (t *Tgbot) sendClientQRLinks(chatId int64, email string, window ...*clientW
 	}
 
 	// Inform user
-	t.sendClientWindowMessage(chatId, t.I18nBot("tgbot.answers.qrCodeForClient", "Email=="+email), window...)
+	if len(window) > 0 && window[0] != nil {
+		t.sendClientWindowWithMarkup(chatId, t.I18nBot("tgbot.answers.qrCodeForClient", "Email=="+email), window[0], clientBackToMenuKeyboard())
+	} else {
+		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.qrCodeForClient", "Email=="+email))
+	}
 
 	// Send sub URL QR (filename: sub.png)
 	if png, err := createQR(subURL, 320); err == nil {
@@ -383,9 +387,6 @@ func (t *Tgbot) sendClientQRLinks(chatId int64, email string, window ...*clientW
 				}
 			}
 		}
-	}
-	if len(window) > 0 && window[0] != nil {
-		t.SendMsgToTgbot(chatId, "QR-коды готовы.", clientBackToMenuKeyboard())
 	}
 }
 

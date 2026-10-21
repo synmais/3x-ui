@@ -28,7 +28,10 @@ func (f *Flow) SendSupportRequest(userID int64, displayName, message string, med
 	if len(mediaIDs) > 0 && f.SendSupportMediaToAdmins != nil {
 		f.SendToAdmins(text)
 		f.SendSupportMediaToAdmins(userID, mediaIDs)
-		f.SendToAdmins("↩️ Ответить на обращение:", keyboard)
+		// Telegram attaches inline keyboards to messages, not media groups. An
+		// invisible placeholder keeps the reply button after the album without
+		// adding another visible instruction to the admin chat.
+		f.SendToAdmins("\u2063", keyboard)
 	} else {
 		f.SendToAdmins(text, keyboard)
 	}
@@ -50,7 +53,7 @@ func (f *Flow) SendSupportReply(adminChatID, userID int64, message string, media
 		text += "\n\n" + html.EscapeString(message)
 	}
 	if len(mediaIDs) > 0 {
-		f.SendMessage(userID, text)
+		f.SendMessage(userID, text, supportBackToMenuKeyboard())
 		if f.CopySupportMedia == nil {
 			f.SendMessage(adminChatID, "Не удалось отправить вложение пользователю. Попробуйте ещё раз.")
 			return
@@ -59,7 +62,6 @@ func (f *Flow) SendSupportReply(adminChatID, userID int64, message string, media
 			f.SendMessage(adminChatID, "Не удалось отправить вложение пользователю. Попробуйте ещё раз.")
 			return
 		}
-		f.SendMessage(userID, "Ответ отправлен.", supportBackToMenuKeyboard())
 	} else {
 		f.SendMessage(userID, text, supportBackToMenuKeyboard())
 	}
