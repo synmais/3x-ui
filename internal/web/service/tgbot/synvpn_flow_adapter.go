@@ -43,7 +43,12 @@ func (t *Tgbot) synVPNFlow(view ...*clientViewRenderer) *synvpntgbot.Flow {
 		SendMessageNoPreview:   t.SendMsgToTgbotNoPreview,
 		RandomClientEmail:      t.randomLowerAndNum,
 		ShowRegistrationPrompt: showRegistrationPrompt,
-		SendSubscriptionLinks:  func(chatID int64, email string) { t.sendClientSubLinks(chatID, email) },
+		SendSubscriptionLinks: func(chatID int64, email string) {
+			// Payment confirmation and its subscription link are standalone
+			// messages, so do not let later button taps edit an older client view.
+			t.resetClientView(chatUser{chatID: chatID, userID: chatID})
+			t.sendClientPostPaymentLinks(chatID, email)
+		},
 		ListDevices: func(email string) ([]synvpntgbot.Device, int, error) {
 			record, err := t.clientService.GetRecordByEmail(nil, email)
 			if err != nil {

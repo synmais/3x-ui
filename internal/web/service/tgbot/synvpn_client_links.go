@@ -14,6 +14,14 @@ import (
 
 // sendClientSubLinks sends the subscription links for the client to the chat.
 func (t *Tgbot) sendClientSubLinks(chatId int64, email string, view ...*clientViewRenderer) {
+	t.sendClientSubscriptionLinks(chatId, email, false, view...)
+}
+
+func (t *Tgbot) sendClientPostPaymentLinks(chatID int64, email string) {
+	t.sendClientSubscriptionLinks(chatID, email, true)
+}
+
+func (t *Tgbot) sendClientSubscriptionLinks(chatId int64, email string, withMenuButton bool, view ...*clientViewRenderer) {
 	subURL, subJsonURL, err := t.buildSubscriptionURLs(email)
 	if err != nil {
 		t.sendSynVPNClientViewMessage(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error(), view...)
@@ -34,6 +42,11 @@ func (t *Tgbot) sendClientSubLinks(chatId int64, email string, view ...*clientVi
 			tu.InlineKeyboardButton("➕ Добавить подписку").WithCallbackData("client_add_subscription"),
 		),
 	)
+	if withMenuButton {
+		inlineKeyboard.InlineKeyboard = append(inlineKeyboard.InlineKeyboard, tu.InlineKeyboardRow(
+			tu.InlineKeyboardButton("⬅️ Назад в меню").WithCallbackData("client_view_home"),
+		))
+	}
 	if len(view) > 0 && view[0] != nil {
 		view[0].send(chatId, msg, inlineKeyboard)
 	} else {

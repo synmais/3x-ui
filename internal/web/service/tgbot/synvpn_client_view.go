@@ -24,6 +24,7 @@ type clientScreen struct {
 type clientViewState struct {
 	mu          sync.Mutex
 	message     int
+	controls    int
 	attachments []int
 	current     clientScreen
 	back        []clientScreen
@@ -143,6 +144,11 @@ func (r *clientViewRenderer) render(screen clientScreen, push bool) {
 				}
 			} else {
 				w.attachments = attachments
+				if controls, controlsErr := r.sendInstructionControls(screen, false); controlsErr != nil {
+					logger.Warning("Failed to send client instruction controls:", controlsErr)
+				} else {
+					w.controls = controls.MessageID
+				}
 			}
 			w.current = screen
 		}
@@ -199,6 +205,10 @@ func (r *clientViewRenderer) render(screen clientScreen, push bool) {
 			r.t.deleteMessageTgBot(r.actor.chatID, messageID)
 		}
 		w.attachments = nil
+		if w.controls != 0 {
+			r.t.deleteMessageTgBot(r.actor.chatID, w.controls)
+			w.controls = 0
+		}
 		attachments, err := sendSynVPNInstructionMedia(r.actor.chatID, screen.mediaKey, screen.mediaCaption)
 		if err != nil {
 			if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, errNoSynVPNInstructionScreenshots) {
@@ -211,6 +221,12 @@ func (r *clientViewRenderer) render(screen clientScreen, push bool) {
 			}
 		} else {
 			w.attachments = attachments
+			controls, controlsErr := r.sendInstructionControls(screen, len(w.back) > 0)
+			if controlsErr != nil {
+				logger.Warning("Failed to send client instruction controls:", controlsErr)
+			} else {
+				w.controls = controls.MessageID
+			}
 		}
 		w.current = screen
 		w.revision++
@@ -230,6 +246,21 @@ func (r *clientViewRenderer) render(screen clientScreen, push bool) {
 		r.t.deleteMessageTgBot(r.actor.chatID, w.message)
 		w.message = message.MessageID
 	}
+	if screen.mediaKey != "" {
+		if w.controls == 0 {
+			controls, err := r.sendInstructionControls(screen, len(w.back) > 0)
+			if err != nil {
+				logger.Warning("Failed to send client instruction controls:", err)
+			} else {
+				w.controls = controls.MessageID
+			}
+		} else if err := r.editInstructionControls(w.controls, screen, len(w.back) > 0); err != nil {
+			logger.Warning("Failed to update client instruction controls:", err)
+		}
+	} else if w.controls != 0 {
+		r.t.deleteMessageTgBot(r.actor.chatID, w.controls)
+		w.controls = 0
+	}
 	if screen.mediaKey == "" && len(w.attachments) > 0 {
 		for _, messageID := range w.attachments {
 			r.t.deleteMessageTgBot(r.actor.chatID, messageID)
@@ -241,7 +272,10 @@ func (r *clientViewRenderer) render(screen clientScreen, push bool) {
 }
 
 func (r *clientViewRenderer) sendHeader(screen *clientScreen, withBack bool) (*telego.Message, error) {
-	markup := r.navigation(screen.markup, withBack)
+	var markup telego.ReplyMarkup
+	if screen.mediaKey == "" {
+		markup = r.navigation(screen.markup, withBack)
+	}
 	if screen.photo {
 		message, err := bot.SendPhoto(context.Background(), &telego.SendPhotoParams{
 			ChatID: tu.ID(r.actor.chatID), Photo: tu.FileFromBytes(synvpntgbot.MainMenuBanner(), "main-menu-banner.jpg"),
@@ -259,7 +293,10 @@ func (r *clientViewRenderer) sendHeader(screen *clientScreen, withBack bool) (*t
 }
 
 func (r *clientViewRenderer) editHeader(messageID int, screen clientScreen, withBack bool) error {
-	markup := r.navigation(screen.markup, withBack)
+	markup := &telego.InlineKeyboardMarkup{InlineKeyboard: make([][]telego.InlineKeyboardButton, 0)}
+	if screen.mediaKey == "" {
+		markup = r.navigation(screen.markup, withBack)
+	}
 	if screen.photo {
 		_, err := bot.EditMessageCaption(context.Background(), &telego.EditMessageCaptionParams{
 			ChatID: tu.ID(r.actor.chatID), MessageID: messageID, Caption: screen.text,
@@ -275,6 +312,24 @@ func (r *clientViewRenderer) editHeader(messageID int, screen clientScreen, with
 		ParseMode: "HTML", ReplyMarkup: markup,
 	}
 	_, err := bot.EditMessageText(context.Background(), &params)
+	if isTelegramNotModifiedError(err) {
+		return nil
+	}
+	return err
+}
+
+func (r *clientViewRenderer) sendInstructionControls(screen clientScreen, withBack bool) (*telego.Message, error) {
+	return bot.SendMessage(context.Background(), &telego.SendMessageParams{
+		ChatID: tu.ID(r.actor.chatID), Text: "⬇️ Действия:", ParseMode: "HTML",
+		ReplyMarkup: r.navigation(screen.markup, withBack),
+	})
+}
+
+func (r *clientViewRenderer) editInstructionControls(messageID int, screen clientScreen, withBack bool) error {
+	_, err := bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+		ChatID: tu.ID(r.actor.chatID), MessageID: messageID, Text: "⬇️ Действия:", ParseMode: "HTML",
+		ReplyMarkup: r.navigation(screen.markup, withBack),
+	})
 	if isTelegramNotModifiedError(err) {
 		return nil
 	}
@@ -391,9 +446,11 @@ func (r *clientViewRenderer) cancel() {
 	w := r.state
 	w.mu.Lock()
 	messageID := w.message
+	controlsID := w.controls
 	attachments := w.attachments
 	paymentID := w.paymentID
 	w.message = 0
+	w.controls = 0
 	w.current = clientScreen{}
 	w.back = nil
 	w.paymentID = ""
@@ -405,6 +462,9 @@ func (r *clientViewRenderer) cancel() {
 	clientViewStates.Unlock()
 	if messageID != 0 {
 		r.t.deleteMessageTgBot(r.actor.chatID, messageID)
+	}
+	if controlsID != 0 {
+		r.t.deleteMessageTgBot(r.actor.chatID, controlsID)
 	}
 	for _, attachmentID := range attachments {
 		r.t.deleteMessageTgBot(r.actor.chatID, attachmentID)
