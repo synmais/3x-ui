@@ -24,6 +24,7 @@ type clientScreen struct {
 type clientViewState struct {
 	mu          sync.Mutex
 	message     int
+	controls    int
 	attachments []int
 	current     clientScreen
 	back        []clientScreen
@@ -131,7 +132,7 @@ func (r *clientViewRenderer) render(screen clientScreen, push bool) {
 		w.message, w.current = message.MessageID, screen
 		w.revision++
 		if screen.mediaKey != "" {
-			attachments, mediaErr := sendSynVPNInstructionMedia(r.actor.chatID, screen.mediaKey, screen.mediaCaption)
+			attachments, controls, mediaErr := sendSynVPNInstructionMedia(r.actor.chatID, screen.mediaKey, screen.mediaCaption, r.navigation(screen.markup, false))
 			if mediaErr != nil {
 				if !errors.Is(mediaErr, fs.ErrNotExist) && !errors.Is(mediaErr, errNoSynVPNInstructionScreenshots) {
 					logger.Warning("Failed to send client instruction screenshots:", mediaErr)
@@ -143,9 +144,7 @@ func (r *clientViewRenderer) render(screen clientScreen, push bool) {
 				}
 			} else {
 				w.attachments = attachments
-				if err := r.editInstructionMarkup(screen, false); err != nil {
-					logger.Warning("Failed to attach client instruction controls:", err)
-				}
+				w.controls = controls
 			}
 			w.current = screen
 		}
@@ -168,6 +167,10 @@ func (r *clientViewRenderer) render(screen clientScreen, push bool) {
 		r.t.deleteMessageTgBot(r.actor.chatID, w.message)
 		for _, attachmentID := range w.attachments {
 			r.t.deleteMessageTgBot(r.actor.chatID, attachmentID)
+		}
+		if w.controls != 0 {
+			r.t.deleteMessageTgBot(r.actor.chatID, w.controls)
+			w.controls = 0
 		}
 		w.message, w.current = message.MessageID, screen
 		w.attachments = nil
@@ -201,8 +204,12 @@ func (r *clientViewRenderer) render(screen clientScreen, push bool) {
 		for _, messageID := range w.attachments {
 			r.t.deleteMessageTgBot(r.actor.chatID, messageID)
 		}
+		if w.controls != 0 {
+			r.t.deleteMessageTgBot(r.actor.chatID, w.controls)
+			w.controls = 0
+		}
 		w.attachments = nil
-		attachments, err := sendSynVPNInstructionMedia(r.actor.chatID, screen.mediaKey, screen.mediaCaption)
+		attachments, controls, err := sendSynVPNInstructionMedia(r.actor.chatID, screen.mediaKey, screen.mediaCaption, r.navigation(screen.markup, len(w.back) > 0))
 		if err != nil {
 			if !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, errNoSynVPNInstructionScreenshots) {
 				logger.Warning("Failed to send client instruction screenshots:", err)
@@ -214,9 +221,7 @@ func (r *clientViewRenderer) render(screen clientScreen, push bool) {
 			}
 		} else {
 			w.attachments = attachments
-			if err := r.editInstructionMarkup(screen, len(w.back) > 0); err != nil {
-				logger.Warning("Failed to attach client instruction controls:", err)
-			}
+			w.controls = controls
 		}
 		w.current = screen
 		w.revision++
@@ -246,6 +251,10 @@ func (r *clientViewRenderer) render(screen clientScreen, push bool) {
 			r.t.deleteMessageTgBot(r.actor.chatID, messageID)
 		}
 		w.attachments = nil
+		if w.controls != 0 {
+			r.t.deleteMessageTgBot(r.actor.chatID, w.controls)
+			w.controls = 0
+		}
 	}
 	w.current = screen
 	w.revision++
@@ -299,11 +308,15 @@ func (r *clientViewRenderer) editHeader(messageID int, screen clientScreen, with
 }
 
 func (r *clientViewRenderer) editInstructionMarkup(screen clientScreen, withBack bool) error {
-	if len(r.state.attachments) == 0 {
+	messageID := r.state.controls
+	if messageID == 0 && len(r.state.attachments) > 0 {
+		messageID = r.state.attachments[len(r.state.attachments)-1]
+	}
+	if messageID == 0 {
 		return nil
 	}
 	_, err := bot.EditMessageReplyMarkup(context.Background(), &telego.EditMessageReplyMarkupParams{
-		ChatID: tu.ID(r.actor.chatID), MessageID: r.state.attachments[len(r.state.attachments)-1],
+		ChatID: tu.ID(r.actor.chatID), MessageID: messageID,
 		ReplyMarkup: r.navigation(screen.markup, withBack),
 	})
 	if isTelegramNotModifiedError(err) {
@@ -422,9 +435,11 @@ func (r *clientViewRenderer) cancel() {
 	w := r.state
 	w.mu.Lock()
 	messageID := w.message
+	controlsID := w.controls
 	attachments := w.attachments
 	paymentID := w.paymentID
 	w.message = 0
+	w.controls = 0
 	w.current = clientScreen{}
 	w.back = nil
 	w.paymentID = ""
@@ -436,6 +451,9 @@ func (r *clientViewRenderer) cancel() {
 	clientViewStates.Unlock()
 	if messageID != 0 {
 		r.t.deleteMessageTgBot(r.actor.chatID, messageID)
+	}
+	if controlsID != 0 {
+		r.t.deleteMessageTgBot(r.actor.chatID, controlsID)
 	}
 	for _, attachmentID := range attachments {
 		r.t.deleteMessageTgBot(r.actor.chatID, attachmentID)
