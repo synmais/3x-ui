@@ -3,6 +3,7 @@ package tgbot
 import (
 	"testing"
 
+	synvpntgbot "github.com/mhsanaei/3x-ui/v3/internal/synvpn/tgbot"
 	"github.com/mymmrac/telego"
 )
 
@@ -37,13 +38,13 @@ func TestIsClientSelfCallback(t *testing.T) {
 		"client_device_delete alice@x 1",
 	}
 	for _, d := range allowed {
-		if !isClientSelfCallback(d) {
+		if !synvpntgbot.IsClientSelfCallback(d) {
 			t.Errorf("%q should be a per-user client callback", d)
 		}
 	}
 	denied := []string{"get_backup", "reset_all_traffics_c", "add_client", "onlines", "get_banlogs", "get_usage"}
 	for _, d := range denied {
-		if isClientSelfCallback(d) {
+		if synvpntgbot.IsClientSelfCallback(d) {
 			t.Errorf("%q is an admin-only callback and must not be treated as per-user", d)
 		}
 	}

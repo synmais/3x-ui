@@ -1,7 +1,7 @@
 package tgbot
 
 import (
-	"strings"
+	synvpntgbot "github.com/mhsanaei/3x-ui/v3/internal/synvpn/tgbot"
 
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
@@ -66,17 +66,9 @@ func (t *Tgbot) gateCommand(message *telego.Message) (isAdmin bool, ok bool) {
 // continuing to reject every other callback until a client account exists.
 func (t *Tgbot) gateCallback(query *telego.CallbackQuery) (isAdmin bool, ok bool) {
 	level := t.levelOf(query.From.ID)
-	if level == levelStranger && !isStrangerRegistrationCallback(query.Data) {
+	if level == levelStranger && !synvpntgbot.IsStrangerRegistrationCallback(query.Data) {
 		t.sendCallbackAnswerTgBot(query.ID, "")
 		return false, false
 	}
 	return level == levelAdmin, true
-}
-
-func isStrangerRegistrationCallback(data string) bool {
-	switch data {
-	case "register_user", "register_cancel", "subscription_confirm", "subscription_cancel", "client_window_back", "client_window_cancel", "client_payment_fee_info":
-		return true
-	}
-	return strings.HasPrefix(data, "subscription_tariff_") || strings.HasPrefix(data, "subscription_period_")
 }

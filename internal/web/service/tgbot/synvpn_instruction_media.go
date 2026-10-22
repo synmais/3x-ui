@@ -14,7 +14,7 @@ import (
 	tu "github.com/mymmrac/telego/telegoutil"
 )
 
-var errNoInstructionScreenshots = errors.New("no instruction screenshots found")
+var errNoSynVPNInstructionScreenshots = errors.New("no instruction screenshots found")
 
 type instructionUploadFile struct {
 	*os.File
@@ -23,7 +23,7 @@ type instructionUploadFile struct {
 
 func (f instructionUploadFile) Name() string { return f.filename }
 
-func instructionKeyboard(buttons []synvpntgbot.InstructionButton) *telego.InlineKeyboardMarkup {
+func synVPNInstructionKeyboard(buttons []synvpntgbot.InstructionButton) *telego.InlineKeyboardMarkup {
 	rows := make([][]telego.InlineKeyboardButton, 0, len(buttons))
 	for _, button := range buttons {
 		rows = append(rows, tu.InlineKeyboardRow(
@@ -36,7 +36,7 @@ func instructionKeyboard(buttons []synvpntgbot.InstructionButton) *telego.Inline
 	return &telego.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-func sendClientInstructionMedia(chatID int64, instructionID, caption string) ([]int, error) {
+func sendSynVPNInstructionMedia(chatID int64, instructionID, caption string) ([]int, error) {
 	var instruction *synvpntgbot.ClientInstruction
 	for _, callback := range []string{
 		"client_instruction_payment", "client_instruction_renewal", "client_instruction_upgrade",
@@ -73,7 +73,7 @@ func sendClientInstructionMedia(chatID int64, instructionID, caption string) ([]
 		paths = append(paths, filepath.Join(instruction.MediaDirectory(), entry.Name()))
 	}
 	if len(paths) == 0 {
-		return nil, fmt.Errorf("%w in %s", errNoInstructionScreenshots, instruction.MediaDirectory())
+		return nil, fmt.Errorf("%w in %s", errNoSynVPNInstructionScreenshots, instruction.MediaDirectory())
 	}
 
 	messageIDs := make([]int, 0, len(paths))

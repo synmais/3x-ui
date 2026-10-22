@@ -8,7 +8,7 @@ import (
 	tu "github.com/mymmrac/telego/telegoutil"
 )
 
-func copySupportMessages(fromChatID, toChatID int64, messageIDs []int) error {
+func copySynVPNSupportMessages(fromChatID, toChatID int64, messageIDs []int) error {
 	if len(messageIDs) == 0 {
 		return nil
 	}

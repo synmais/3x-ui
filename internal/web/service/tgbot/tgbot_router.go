@@ -124,12 +124,7 @@ func (t *Tgbot) OnReceive() {
 					t.handleBroadcastInput(&message, actor)
 					return nil
 				}
-				if userState == "awaiting_support_message" {
-					t.handleSupportInput(&message, actor, userState)
-					return nil
-				}
-				if _, ok := strings.CutPrefix(userState, "awaiting_support_reply "); ok {
-					t.handleSupportInput(&message, actor, userState)
+				if t.handleSynVPNSupportInput(&message, actor, userState) {
 					return nil
 				}
 				// Only a wizard step touches the draft, so only it takes the lock.
@@ -241,10 +236,7 @@ func (t *Tgbot) answerCommand(message *telego.Message, chatId int64, isAdmin boo
 		msg += t.I18nBot("tgbot.commands.pleaseChoose")
 	case "start":
 		if !isAdmin {
-			actor := messageActor(*message)
-			t.resetClientWindow(actor)
-			t.clearPurchase(chatId)
-			userStateMgr.clear(actor)
+			t.prepareSynVPNClientStart(message, chatId)
 		}
 		if len(commandArgs) > 0 {
 			if !isAdmin && !t.allowInviteAttempt(message.From) {
@@ -253,9 +245,7 @@ func (t *Tgbot) answerCommand(message *telego.Message, chatId int64, isAdmin boo
 			}
 			t.claimInvite(chatId, message.From.ID, commandArgs[0])
 		}
-		if !isAdmin && t.levelOf(message.From.ID) == levelStranger {
-			window := t.clientWindowForActor(messageActor(*message), -1)
-			t.startRegistration(chatId, *message.From, window)
+		if !isAdmin && t.startRegistrationForStranger(chatId, *message.From) {
 			return
 		}
 		msg += t.I18nBot("tgbot.commands.start", "Firstname=="+html.EscapeString(message.From.FirstName))
@@ -339,11 +329,6 @@ func (t *Tgbot) answerCommand(message *telego.Message, chatId int64, isAdmin boo
 	}
 }
 
-// showMainMenu displays the main menu without the /start greeting.
-func (t *Tgbot) showMainMenu(chatId int64, isAdmin bool) {
-	t.sendResponse(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), false, isAdmin)
-}
-
 func (t *Tgbot) isCommandForCurrentBot(message *telego.Message) bool {
 	return isCommandForBot(message.Text, botUsername())
 }
@@ -375,19 +360,15 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 	}
 
 	if isAdmin {
-		// Support reply buttons carry only a Telegram user ID and remain usable
-		// for older tickets; other admin actions use expiring hash callbacks.
 		decodedQuery := callbackQuery.Data
-		if !strings.HasPrefix(decodedQuery, "support_reply ") {
-			var err error
-			decodedQuery, err = t.decodeQuery(callbackQuery.Data)
-			if err != nil {
-				// A button older than the 20-minute hash window is the common case
-				// here; the answer clears it, the message outlives a failed send.
-				t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.noQuery"))
-				t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.noQuery"))
-				return
-			}
+		var err error
+		decodedQuery, err = t.decodeQuery(callbackQuery.Data)
+		if err != nil {
+			// A button older than the 20-minute hash window is the common case
+			// here; the answer clears it, the message outlives a failed send.
+			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.noQuery"))
+			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.noQuery"))
+			return
 		}
 		dataArray := strings.Split(decodedQuery, " ")
 
@@ -397,13 +378,7 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			case "broadcast_confirm":
 				t.confirmBroadcast(actor, dataArray[1], callbackQuery.Message.GetMessageID(), callbackQuery.ID)
 			case "support_reply":
-				userID, err := strconv.ParseInt(dataArray[1], 10, 64)
-				if err != nil || userID <= 0 {
-					t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.errorOperation"))
-					return
-				}
-				t.startSupportReply(actor, userID)
-				t.sendCallbackAnswerTgBot(callbackQuery.ID, "Введите ответ пользователю")
+				t.handleSynVPNSupportReply(callbackQuery, actor, dataArray[1])
 			case "get_clients_for_sub":
 				inboundIdInt, err := strconv.Atoi(dataArray[1])
 				if err != nil {
@@ -1009,63 +984,17 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		if decoded, err := t.decodeQuery(callbackQuery.Data); err == nil {
 			callbackQuery.Data = decoded
 		}
-		if !isClientSelfCallback(callbackQuery.Data) {
+		if !synvpntgbot.IsClientSelfCallback(callbackQuery.Data) {
 			return
 		}
 	}
 
-	var clientWindow *clientWindowRenderer
+	var clientView *clientViewRenderer
 	if !isAdmin {
-		clientWindow = t.clientWindowForCallback(actor, callbackQuery.Message.GetMessageID())
-		switch callbackQuery.Data {
-		case "client_window_back":
-			if !clientWindow.backToPrevious() {
-				t.sendCallbackAnswerTgBot(callbackQuery.ID, "Это первый экран")
-			} else {
-				t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
-			}
-			return
-		case "client_window_home":
-			clientWindow.cancel()
-			t.clearPurchase(chatId)
-			userStateMgr.clear(actor)
-			t.showMainMenu(chatId, false)
-			t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
-			return
-		case "client_window_cancel":
-			clientWindow.cancel()
-			t.clearPurchase(chatId)
-			userStateMgr.clear(actor)
-			if t.levelOf(callbackQuery.From.ID) == levelStranger {
-				// A new user has no client menu to return to. Reopen registration
-				// tariff selection in a fresh window instead of leaving them with
-				// no message after they cancel a payment.
-				t.startRegistration(chatId, callbackQuery.From, t.clientWindowForActor(actor, 0))
-				t.sendCallbackAnswerTgBot(callbackQuery.ID, "Выберите тариф")
-			} else {
-				t.sendCallbackAnswerTgBot(callbackQuery.ID, "Отменено")
-			}
+		clientView = t.clientViewForCallback(actor, callbackQuery.Message.GetMessageID())
+		if t.handleSynVPNClientCallback(callbackQuery, actor, clientView) {
 			return
 		}
-	}
-	if callbackQuery.Data == "client_payment_fee_info" {
-		t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
-		if clientWindow != nil {
-			clientWindow.send(chatId, synvpntgbot.PaymentFeeInfoText)
-		}
-		return
-	}
-
-	if strings.HasPrefix(callbackQuery.Data, "client_instruction") {
-		if clientWindow != nil {
-			if page, ok := synvpntgbot.InstructionPageForCallback(callbackQuery.Data); ok {
-				t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
-				clientWindow.sendInstruction(chatId, page)
-				return
-			}
-		}
-		t.sendCallbackAnswerTgBot(callbackQuery.ID, "Инструкция не найдена")
-		return
 	}
 
 	switch callbackQuery.Data {
@@ -1088,161 +1017,6 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.getBanLogs"))
 		t.sendBanLogs(chatId, true)
 
-	case "register_user":
-		tgUserID := callbackQuery.From.ID
-
-		traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
-		if err != nil {
-			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation"))
-			return
-		}
-
-		if len(traffics) > 0 {
-			t.getClientUsage(chatId, tgUserID, traffics[0].Email, clientWindow)
-			return
-		}
-
-		t.startRegistration(chatId, callbackQuery.From, clientWindow)
-
-	case "register_cancel", "subscription_cancel":
-		t.clearPurchase(chatId)
-		if clientWindow != nil {
-			clientWindow.cancel()
-		} else {
-			t.SendMsgToTgbotDeleteAfter(chatId, t.I18nBot("tgbot.messages.cancel"), 3, tu.ReplyKeyboardRemove())
-		}
-		t.sendCallbackAnswerTgBot(callbackQuery.ID, "Отменено")
-
-	case "register_confirm", "subscription_confirm":
-		t.sendCallbackAnswerTgBot(
-			callbackQuery.ID,
-			t.I18nBot("tgbot.answers.successfulOperation"),
-		)
-		t.confirmPurchase(chatId, callbackQuery.From.ID, clientWindow)
-
-	case "client_traffic":
-		tgUserID := callbackQuery.From.ID
-		traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
-		if err != nil {
-			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation"))
-			return
-		}
-
-		if len(traffics) == 0 {
-			t.showRegistrationPrompt(chatId, clientWindow)
-			return
-		}
-
-		if len(traffics) == 1 {
-			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.clientUsage"))
-			t.getClientUsage(chatId, tgUserID, traffics[0].Email, clientWindow)
-			return
-		}
-
-		var buttons []telego.InlineKeyboardButton
-		for _, traffic := range traffics {
-			buttons = append(
-				buttons,
-				tu.InlineKeyboardButton(traffic.Email).
-					WithCallbackData(t.encodeQuery("client_traffic "+traffic.Email)),
-			)
-		}
-
-		cols := 1
-		if len(buttons) >= 6 {
-			cols = 2
-		}
-
-		keyboard := tu.InlineKeyboardGrid(tu.InlineKeyboardCols(cols, buttons...))
-		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.clientUsage"))
-		t.sendClientWindowWithMarkup(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), clientWindow, keyboard)
-
-	case "client_commands":
-		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.commands"))
-		if clientWindow != nil {
-			clientWindow.send(chatId, t.I18nBot("tgbot.commands.helpClientCommands"))
-		} else {
-			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.commands.helpClientCommands"))
-		}
-	case "client_devices":
-		t.showOwnDevices(chatId, callbackQuery.From.ID, clientWindow)
-	case "client_renew":
-		t.startOwnRenewal(chatId, callbackQuery.From, clientWindow)
-	case "client_add_subscription":
-		t.startNewPurchase(chatId, callbackQuery.From, clientWindow)
-	case "client_support":
-		t.askClientForSupport(actor, clientWindow)
-	case "client_sub_links":
-		// show user's own clients to choose one for sub links
-		tgUserID := callbackQuery.From.ID
-		traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
-		if err != nil {
-			// fallback to message
-			t.sendClientWindowMessage(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error(), clientWindow)
-			return
-		}
-		if len(traffics) == 0 {
-			t.showRegistrationPrompt(chatId, clientWindow)
-			return
-		}
-		if len(traffics) == 1 {
-			t.sendClientSubLinks(chatId, traffics[0].Email, clientWindow)
-			return
-		}
-		var buttons []telego.InlineKeyboardButton
-		for _, tr := range traffics {
-			buttons = append(buttons, tu.InlineKeyboardButton(tr.Email).WithCallbackData(t.encodeQuery("client_sub_links "+tr.Email)))
-		}
-		cols := 1
-		if len(buttons) >= 6 {
-			cols = 2
-		}
-		keyboard := tu.InlineKeyboardGrid(tu.InlineKeyboardCols(cols, buttons...))
-		t.sendClientWindowWithMarkup(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), clientWindow, keyboard)
-	case "client_individual_links":
-		// show user's clients to choose for individual links
-		tgUserID := callbackQuery.From.ID
-		traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
-		if err != nil {
-			t.sendClientWindowMessage(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+err.Error(), clientWindow)
-			return
-		}
-		if len(traffics) == 0 {
-			t.showRegistrationPrompt(chatId, clientWindow)
-			return
-		}
-		var buttons2 []telego.InlineKeyboardButton
-		for _, tr := range traffics {
-			buttons2 = append(buttons2, tu.InlineKeyboardButton(tr.Email).WithCallbackData(t.encodeQuery("client_individual_links "+tr.Email)))
-		}
-		cols2 := 1
-		if len(buttons2) >= 6 {
-			cols2 = 2
-		}
-		keyboard2 := tu.InlineKeyboardGrid(tu.InlineKeyboardCols(cols2, buttons2...))
-		t.sendClientWindowWithMarkup(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), clientWindow, keyboard2)
-	case "client_qr_links":
-		// show user's clients to choose for QR codes
-		tgUserID := callbackQuery.From.ID
-		traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
-		if err != nil {
-			t.sendClientWindowMessage(chatId, t.I18nBot("tgbot.answers.errorOccurred")+"\r\n"+err.Error(), clientWindow)
-			return
-		}
-		if len(traffics) == 0 {
-			t.showRegistrationPrompt(chatId, clientWindow)
-			return
-		}
-		var buttons3 []telego.InlineKeyboardButton
-		for _, tr := range traffics {
-			buttons3 = append(buttons3, tu.InlineKeyboardButton(tr.Email).WithCallbackData(t.encodeQuery("client_qr_links "+tr.Email)))
-		}
-		cols3 := 1
-		if len(buttons3) >= 6 {
-			cols3 = 2
-		}
-		keyboard3 := tu.InlineKeyboardGrid(tu.InlineKeyboardCols(cols3, buttons3...))
-		t.sendClientWindowWithMarkup(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), clientWindow, keyboard3)
 	case "onlines":
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.onlines"))
 		t.onlineClients(chatId)
@@ -1532,43 +1306,21 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			t.SendMsgToTgbot(chatId, html.EscapeString(report.String()), tu.ReplyKeyboardRemove())
 		}
 	default:
-		if t.handleTariffCallback(chatId, callbackQuery.From.ID, callbackQuery.Data, clientWindow) {
-			t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
-			return
-		}
-		if t.handlePeriodCallback(chatId, callbackQuery.From.ID, callbackQuery.Data, clientWindow) {
-			t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
-			return
-		}
-		if after, ok := strings.CutPrefix(callbackQuery.Data, "client_traffic "); ok {
-			t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
-			t.getClientUsage(chatId, callbackQuery.From.ID, after, clientWindow)
-			return
-		}
-		if t.handleDeviceCallback(chatId, callbackQuery.From.ID, callbackQuery.Data, clientWindow) {
-			t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
-			return
-		}
-
-		action, email, ok := splitClientLinkCallback(callbackQuery.Data)
+		action, email, ok := synvpntgbot.SplitClientLinkCallback(callbackQuery.Data)
 		if !ok {
-			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.errorOperation"))
-			return
-		}
-		if !isAdmin && !t.clientOwnedByTgUser(callbackQuery.From.ID, email) {
 			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.errorOperation"))
 			return
 		}
 		t.sendCallbackAnswerTgBot(callbackQuery.ID, "")
 		switch action {
 		case "client_sub_links":
-			t.sendClientSubLinks(chatId, email, clientWindow)
+			t.sendClientSubLinks(chatId, email)
 		case "client_individual_links":
-			t.sendClientIndividualLinks(chatId, email, clientWindow)
+			t.sendClientIndividualLinks(chatId, email)
 		case "client_qr_links":
-			t.sendClientQRLinks(chatId, email, clientWindow)
+			t.sendClientQRLinks(chatId, email)
 		case "client_renew":
-			t.startRenewal(chatId, callbackQuery.From, email, clientWindow)
+			t.startRenewal(chatId, callbackQuery.From, email)
 		}
 		return
 	}
@@ -1577,51 +1329,4 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 // checkAdmin checks if the given Telegram ID is an admin.
 func checkAdmin(tgId int64) bool {
 	return slices.Contains(adminSnapshot(), tgId)
-}
-
-// isClientSelfCallback reports whether a callback is per-user rather than
-// admin-only; the caller still has to prove the client is its own.
-func isClientSelfCallback(data string) bool {
-	switch data {
-	case "register_user", "register_cancel", "subscription_cancel", "subscription_confirm", "client_renew", "client_add_subscription", "client_support":
-		return true
-	case "client_traffic", "client_commands", "client_sub_links",
-		"client_individual_links", "client_qr_links", "client_devices":
-		return true
-	case "register_confirm":
-		return true
-	case "client_window_back", "client_window_cancel":
-		return true
-	case "client_window_home", "client_payment_fee_info":
-		return true
-	}
-	if strings.HasPrefix(data, "register_tariff_") || strings.HasPrefix(data, "subscription_tariff_") {
-		return true
-	}
-	if strings.HasPrefix(data, "register_period_") || strings.HasPrefix(data, "subscription_period_") {
-		return true
-	}
-	if strings.HasPrefix(data, "client_instruction") {
-		return true
-	}
-	return strings.HasPrefix(data, "client_traffic ") ||
-		strings.HasPrefix(data, "client_devices ") ||
-		strings.HasPrefix(data, "client_device ") ||
-		strings.HasPrefix(data, "client_device_remove ") ||
-		strings.HasPrefix(data, "client_device_delete ") ||
-		strings.HasPrefix(data, "client_renew ") ||
-		strings.HasPrefix(data, "client_sub_links ") ||
-		strings.HasPrefix(data, "client_individual_links ") ||
-		strings.HasPrefix(data, "client_qr_links ")
-}
-
-// splitClientLinkCallback splits "<action> <email>" for the per-client link
-// callbacks; ok is false for every other data.
-func splitClientLinkCallback(data string) (action, email string, ok bool) {
-	for _, candidate := range []string{"client_sub_links", "client_individual_links", "client_qr_links", "client_renew"} {
-		if rest, found := strings.CutPrefix(data, candidate+" "); found && rest != "" {
-			return candidate, rest, true
-		}
-	}
-	return "", "", false
 }

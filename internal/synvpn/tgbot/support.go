@@ -70,7 +70,7 @@ func (f *Flow) SendSupportReply(adminChatID, userID int64, message string, media
 
 func supportBackToMenuKeyboard() telego.ReplyMarkup {
 	return tu.InlineKeyboard(tu.InlineKeyboardRow(
-		tu.InlineKeyboardButton("⬅️ Назад в меню").WithCallbackData("client_window_home"),
+		tu.InlineKeyboardButton("⬅️ Назад в меню").WithCallbackData("client_view_home"),
 	))
 }
 
