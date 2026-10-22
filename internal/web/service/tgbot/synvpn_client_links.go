@@ -3,7 +3,6 @@ package tgbot
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"strings"
 	"time"

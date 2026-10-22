@@ -9,7 +9,6 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
 	synvpntgbot "github.com/mhsanaei/3x-ui/v3/internal/synvpn/tgbot"
 	"github.com/mhsanaei/3x-ui/v3/internal/xray"
-	"github.com/mymmrac/telego"
 )
 
 func (t *Tgbot) synVPNFlow(view ...*clientViewRenderer) *synvpntgbot.Flow {
