@@ -95,13 +95,25 @@ func normalizeHwidRequest(req HwidRequest) HwidRequest {
 	}
 }
 
+// The subscription body is built for disabled clients too, so an expired,
+// depleted or suspended client must keep holding the limit of its subId.
 func effectiveHwidLimitForSubID(tx *gorm.DB, subID string) (int, error) {
 	var limit int
 	err := tx.Model(&model.ClientRecord{}).
-		Where("sub_id = ? AND enable = ?", subID, true).
+		Where("sub_id = ?", subID).
 		Select("COALESCE(MAX(limit_hwid), 0)").
 		Scan(&limit).Error
 	return limit, err
+}
+
+// subIDHasEnabledClient separates "no device limit" from "no such subscription":
+// effectiveHwidLimitForSubID yields 0 for both.
+func subIDHasEnabledClient(tx *gorm.DB, subID string) (bool, error) {
+	var enabled int64
+	err := tx.Model(&model.ClientRecord{}).
+		Where("sub_id = ? AND enable = ?", subID, true).
+		Count(&enabled).Error
+	return enabled > 0, err
 }
 
 func (s *ClientService) EnforceHwidForSubID(subID string, req HwidRequest) (HwidGateResult, error) {
@@ -119,16 +131,32 @@ func (s *ClientService) EnforceHwidForSubID(subID string, req HwidRequest) (Hwid
 	}
 	req = normalizeHwidRequest(req)
 	if limit <= 0 {
-		res.Allowed = true
-		if len(req.Hwid) >= minHwidLength {
-			if trackUnlimitedHwid(db, subID, req) && eventBus != nil {
+
+		if len(req.Hwid) < minHwidLength {
+			return HwidGateResult{Allowed: true}, nil
+		}
+		// The gate runs before the sub lookup; a subId no client owns gets no row.
+		known, err := subIDHasEnabledClient(db, subID)
+		if err != nil {
+			return res, err
+		}
+		// A limit set since the read above sends the request through the gate below.
+		if !known {
+			return HwidGateResult{Allowed: true}, nil
+		}
+
+		unlimited, newDevice := trackUnlimitedHwid(db, subID, req)
+		if unlimited {
+			if newDevice && eventBus != nil {
 				var registered int64
-				if db.Model(&model.ClientHwid{}).Where("sub_id = ?", subID).Count(&registered).Error == nil {
+				if db.Model(&model.ClientHwid{}).
+					Where("sub_id = ?", subID).
+					Count(&registered).Error == nil {
 					publishClientDeviceAdded(db, subID, int(registered), 0)
 				}
 			}
+			return HwidGateResult{Allowed: true}, nil
 		}
-		return res, nil
 	}
 
 	res.Active = true
@@ -237,27 +265,60 @@ func publishClientDeviceEvent(db *gorm.DB, subID string, registered, limit int, 
 
 // trackUnlimitedHwid lists devices of a sub with no HWID limit in the panel. It is
 // best-effort: a failed write must not deny a subscription nothing restricts.
-func trackUnlimitedHwid(db *gorm.DB, subID string, req HwidRequest) bool {
+// Returns whether the sub is still unlimited and whether a new device was registered.
+func trackUnlimitedHwid(db *gorm.DB, subID string, req HwidRequest) (bool, bool) {
+	limited := false
+	newDevice := false
 	now := time.Now().UnixMilli()
 	hash := hashHwid(req.Hwid)
-	var existing int64
-	if err := db.Model(&model.ClientHwid{}).Where("sub_id = ? AND hwid_hash = ?", subID, hash).Count(&existing).Error; err != nil {
-		logger.Warning("check tracked unlimited HWID failed:", err)
-		return false
-	}
-	err := db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "sub_id"}, {Name: "hwid_hash"}},
-		DoUpdates: clause.AssignmentColumns([]string{"last_seen", "user_agent", "device_os", "os_version", "device_model"}),
-	}).Create(&model.ClientHwid{SubID: subID, HwidHash: hash, FirstSeen: now, LastSeen: now, UserAgent: req.UserAgent, DeviceOS: req.DeviceOS, OsVersion: req.OsVersion, DeviceModel: req.DeviceModel}).Error
+
+	err := db.Transaction(func(tx *gorm.DB) error {
+		// A row landing behind setClientLimitHwidByEmailTx's trim would stay registered
+		// above the limit, so the caller's read does not count here.
+		limit, err := effectiveHwidLimitForSubID(tx, subID)
+		if err != nil {
+			return err
+		}
+		if limited = limit > 0; limited {
+			return nil
+		}
+
+		var existing int64
+		if err := tx.Model(&model.ClientHwid{}).
+			Where("sub_id = ? AND hwid_hash = ?", subID, hash).
+			Count(&existing).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "sub_id"}, {Name: "hwid_hash"}},
+			DoUpdates: clause.AssignmentColumns([]string{"last_seen", "user_agent", "device_os", "os_version", "device_model"}),
+		}).Create(&model.ClientHwid{
+			SubID:       subID,
+			HwidHash:    hash,
+			FirstSeen:   now,
+			LastSeen:    now,
+			UserAgent:   req.UserAgent,
+			DeviceOS:    req.DeviceOS,
+			OsVersion:   req.OsVersion,
+			DeviceModel: req.DeviceModel,
+		}).Error; err != nil {
+			return err
+		}
+
+		newDevice = existing == 0
+		return nil
+	})
 	if err != nil {
 		logger.Warning("track HWID for unlimited subscription failed:", err)
-		return false
+		return false, false
 	}
-	return existing == 0
+
+	return !limited, newDevice
 }
 
 // HwidSlotStatusForSubID is SELECT-only: it must never write client_hwids or
-// last_seen. Enabled-clients scope mirrors the gate, so limit == limit enforced.
+// last_seen. It shares the gate's limit query, so limit == limit enforced.
 func (s *ClientService) HwidSlotStatusForSubID(subID string) (status HwidSlotStatus, found bool, err error) {
 	subID = strings.TrimSpace(subID)
 	if subID == "" {
@@ -265,14 +326,9 @@ func (s *ClientService) HwidSlotStatusForSubID(subID string) (status HwidSlotSta
 	}
 
 	db := database.GetDB()
-	var enabled int64
-	if err := db.Model(&model.ClientRecord{}).
-		Where("sub_id = ? AND enable = ?", subID, true).
-		Count(&enabled).Error; err != nil {
+	known, err := subIDHasEnabledClient(db, subID)
+	if err != nil || !known {
 		return status, false, err
-	}
-	if enabled == 0 {
-		return status, false, nil
 	}
 
 	limit, err := effectiveHwidLimitForSubID(db, subID)

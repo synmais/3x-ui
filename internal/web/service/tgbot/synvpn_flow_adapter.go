@@ -9,14 +9,23 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/synvpn"
 	synvpntgbot "github.com/mhsanaei/3x-ui/v3/internal/synvpn/tgbot"
 	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+
+	"github.com/mymmrac/telego"
 )
 
 func (t *Tgbot) synVPNFlow(view ...*clientViewRenderer) *synvpntgbot.Flow {
-	sendMessage := t.SendMsgToTgbot
-	showRegistrationPrompt := func(chatID int64) { t.showRegistrationPrompt(chatID) }
+	sendMessage := func(chatID int64, text string, markup ...telego.ReplyMarkup) {
+		t.SendMsgToTgbot(chatID, text, markup...)
+	}
+	showRegistrationPrompt := func(chatID int64) {
+		t.showRegistrationPrompt(chatID)
+	}
+
 	if len(view) > 0 && view[0] != nil {
 		sendMessage = view[0].send
-		showRegistrationPrompt = func(chatID int64) { t.showRegistrationPrompt(chatID, view[0]) }
+		showRegistrationPrompt = func(chatID int64) {
+			t.showRegistrationPrompt(chatID, view[0])
+		}
 	}
 	flow := &synvpntgbot.Flow{
 		ClientService:  &t.clientService,

@@ -3,6 +3,7 @@ package tgbot
 import (
 	"context"
 	"fmt"
+	"html"
 	"strings"
 	"time"
 
@@ -24,41 +25,11 @@ func (t *Tgbot) sendResponse(chatId int64, msg string, onlyMessage, isAdmin bool
 
 // SendAnswer sends a response message with an inline keyboard to the specified chat.
 func (t *Tgbot) SendAnswer(chatId int64, msg string, isAdmin bool) {
-	numericKeyboard := tu.InlineKeyboard(
-		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.SortedTrafficUsageReport")).WithCallbackData(t.encodeQuery("get_sorted_traffic_usage_report")),
-		),
-		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.serverUsage")).WithCallbackData(t.encodeQuery("get_usage")),
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.ResetAllTraffics")).WithCallbackData(t.encodeQuery("reset_all_traffics")),
-		),
-		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.dbBackup")).WithCallbackData(t.encodeQuery("get_backup")),
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.getBanLogs")).WithCallbackData(t.encodeQuery("get_banlogs")),
-		),
-		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.getInbounds")).WithCallbackData(t.encodeQuery("inbounds")),
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.depleteSoon")).WithCallbackData(t.encodeQuery("deplete_soon")),
-		),
-		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.commands")).WithCallbackData(t.encodeQuery("commands")),
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.onlines")).WithCallbackData(t.encodeQuery("onlines")),
-		),
-		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.allClients")).WithCallbackData(t.encodeQuery("get_inbounds")),
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.addClient")).WithCallbackData(t.encodeQuery("add_client")),
-		),
-		tu.InlineKeyboardRow(
-			tu.InlineKeyboardButton(t.I18nBot("pages.settings.subSettings")).WithCallbackData(t.encodeQuery("admin_client_sub_links")),
-			tu.InlineKeyboardButton(t.I18nBot("subscription.individualLinks")).WithCallbackData(t.encodeQuery("admin_client_individual_links")),
-			tu.InlineKeyboardButton(t.I18nBot("qrCode")).WithCallbackData(t.encodeQuery("admin_client_qr_links")),
-		),
-		// TODOOOOOOOOOOOOOO: Add restart button here.
-	)
+	//
 	numericKeyboardClient := tu.InlineKeyboard(
 		tu.InlineKeyboardRow(
 			tu.InlineKeyboardButton("📊 Статистика").WithCallbackData(t.encodeQuery("client_traffic")),
-			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.devices")).WithCallbackData(t.encodeQuery("client_devices")),
+			tu.InlineKeyboardButton("📱 Устройства").WithCallbackData(t.encodeQuery("client_devices")),
 		),
 		tu.InlineKeyboardRow(
 			tu.InlineKeyboardButton("📦 Подписка").WithCallbackData(t.encodeQuery("client_sub_links")),
@@ -71,7 +42,7 @@ func (t *Tgbot) SendAnswer(chatId int64, msg string, isAdmin bool) {
 
 	var ReplyMarkup telego.ReplyMarkup
 	if isAdmin {
-		ReplyMarkup = numericKeyboard
+		//
 	} else {
 		ReplyMarkup = numericKeyboardClient
 		params := telego.SendPhotoParams{
@@ -117,8 +88,18 @@ func splitMessageLines(block string, limit int) []string {
 	}
 
 	lines := strings.Split(block, "\r\n")
-	pages := []string{lines[0]}
-	for _, line := range lines[1:] {
+	pages := []string{}
+	for _, line := range lines {
+		// A single link can exceed a caption on its own; Telegram counts bytes,
+		// so such a line is split rather than kept whole and rejected.
+		for len(line) > limit {
+			pages = append(pages, line[:limit])
+			line = line[limit:]
+		}
+		if len(pages) == 0 {
+			pages = append(pages, line)
+			continue
+		}
 		last := len(pages) - 1
 		if len(pages[last])+len("\r\n")+len(line) > limit {
 			pages = append(pages, line)
@@ -126,26 +107,32 @@ func splitMessageLines(block string, limit int) []string {
 		}
 		pages[last] += "\r\n" + line
 	}
+	if len(pages) == 0 {
+		pages = append(pages, "")
+	}
 	return pages
 }
 
-// SendMsgToTgbot sends a message to the Telegram bot with optional reply markup.
-func (t *Tgbot) SendMsgToTgbot(chatId int64, msg string, replyMarkup ...telego.ReplyMarkup) {
+// SendMsgToTgbot sends a message with optional reply markup and returns the id
+// of the last one delivered, or 0; only the broadcast prompt needs it.
+func (t *Tgbot) SendMsgToTgbot(chatId int64, msg string, replyMarkup ...telego.ReplyMarkup) int {
 	if !t.IsRunning() {
-		return
+		return 0
 	}
 
 	if msg == "" {
 		logger.Info("[tgbot] message is empty!")
-		return
+		return 0
 	}
+	lastID := 0
 
 	allMessages := pageMessage(msg, telegramPageLimit)
 	for n, message := range allMessages {
 		params := telego.SendMessageParams{
-			ChatID:    tu.ID(chatId),
-			Text:      message,
-			ParseMode: "HTML",
+			ChatID:          tu.ID(chatId),
+			MessageThreadID: adminTopic(chatId),
+			Text:            message,
+			ParseMode:       "HTML",
 		}
 		// only add replyMarkup to last message
 		if len(replyMarkup) > 0 && n == (len(allMessages)-1) {
@@ -156,10 +143,13 @@ func (t *Tgbot) SendMsgToTgbot(chatId int64, msg string, replyMarkup ...telego.R
 		maxRetries := 3
 		for attempt := range maxRetries {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			_, err := bot.SendMessage(ctx, &params)
+			sent, err := liveBot().SendMessage(ctx, &params)
 			cancel()
 
 			if err == nil {
+				if sent != nil {
+					lastID = sent.MessageID
+				}
 				break // Success
 			}
 
@@ -186,6 +176,7 @@ func (t *Tgbot) SendMsgToTgbot(chatId int64, msg string, replyMarkup ...telego.R
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
+	return lastID
 }
 
 func (t *Tgbot) SendMsgToTgbotNoPreview(chatId int64, msg string, replyMarkup ...telego.ReplyMarkup) {
@@ -263,11 +254,12 @@ func (t *Tgbot) SendMsgToTgbotAdmins(msg string, replyMarkup ...telego.ReplyMark
 
 // sendCallbackAnswerTgBot answers a callback query with a message.
 func (t *Tgbot) sendCallbackAnswerTgBot(id string, message string) {
+	// Callback answers are plain text, so the HTML entities I18nBot adds are undone.
 	params := telego.AnswerCallbackQueryParams{
 		CallbackQueryID: id,
-		Text:            message,
+		Text:            html.UnescapeString(message),
 	}
-	if err := bot.AnswerCallbackQuery(context.Background(), &params); err != nil {
+	if err := liveBot().AnswerCallbackQuery(context.Background(), &params); err != nil {
 		logger.Warning(err)
 	}
 }
@@ -279,7 +271,7 @@ func (t *Tgbot) editMessageCallbackTgBot(chatId int64, messageID int, inlineKeyb
 		MessageID:   messageID,
 		ReplyMarkup: inlineKeyboard,
 	}
-	if _, err := bot.EditMessageReplyMarkup(context.Background(), &params); err != nil {
+	if _, err := liveBot().EditMessageReplyMarkup(context.Background(), &params); err != nil {
 		if isTelegramNotModifiedError(err) {
 			logger.Debug("Telegram reply markup unchanged, skipping edit")
 			return
@@ -299,7 +291,7 @@ func (t *Tgbot) editMessageTgBot(chatId int64, messageID int, text string, inlin
 	if len(inlineKeyboard) > 0 {
 		params.ReplyMarkup = inlineKeyboard[0]
 	}
-	if _, err := bot.EditMessageText(context.Background(), &params); err != nil {
+	if _, err := liveBot().EditMessageText(context.Background(), &params); err != nil {
 		if isTelegramNotModifiedError(err) {
 			logger.Debug("Telegram message text unchanged, skipping edit")
 			return
@@ -329,49 +321,24 @@ func isTelegramUnavailableEditError(err error) bool {
 		strings.Contains(description, "message cannot be edited")
 }
 
-// SendMsgToTgbotDeleteAfter sends a message and deletes it after a specified delay.
-func (t *Tgbot) SendMsgToTgbotDeleteAfter(chatId int64, msg string, delayInSeconds int, replyMarkup ...telego.ReplyMarkup) {
-	// Determine if replyMarkup was passed; otherwise, set it to nil
-	var replyMarkupParam telego.ReplyMarkup
-	if len(replyMarkup) > 0 {
-		replyMarkupParam = replyMarkup[0] // Use the first element
+// sendPagedNotice posts one notice per page, each dismissable. Telegram rejects
+// a message over 4096 characters whole, so a per-client report has to be split.
+func (t *Tgbot) sendPagedNotice(chatID int64, text string) {
+	for _, chunk := range pageMessage(text, telegramPageLimit) {
+		t.sendNoticeReturningID(chatID, chunk)
 	}
-
-	// Send the message
-	sentMsg, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
-		ChatID:      tu.ID(chatId),
-		Text:        msg,
-		ReplyMarkup: replyMarkupParam, // Use the correct replyMarkup value
-	})
-	if err != nil {
-		logger.Warning("Failed to send message:", err)
-		return
-	}
-
-	// Delete the sent message after the specified number of seconds.
-	go t.deleteMessageAfterDelay(chatId, sentMsg.MessageID, delayInSeconds)
-}
-
-// deleteMessageAfterDelay waits delayInSeconds and then removes the message. It
-// deliberately does not touch the conversation state: every caller that ends a
-// wizard step already clears the state synchronously, and clearing it here — up
-// to several seconds later — would wipe a state the user set for the next step
-// in the meantime, silently dropping their following input.
-func (t *Tgbot) deleteMessageAfterDelay(chatId int64, messageID, delayInSeconds int) {
-	time.Sleep(time.Duration(delayInSeconds) * time.Second)
-	t.deleteMessageTgBot(chatId, messageID)
 }
 
 // deleteMessageTgBot deletes a message from the chat.
 func (t *Tgbot) deleteMessageTgBot(chatId int64, messageID int) {
-	if bot == nil {
+	if liveBot() == nil {
 		return
 	}
 	params := telego.DeleteMessageParams{
 		ChatID:    tu.ID(chatId),
 		MessageID: messageID,
 	}
-	if err := bot.DeleteMessage(context.Background(), &params); err != nil {
+	if err := liveBot().DeleteMessage(context.Background(), &params); err != nil {
 		logger.Warning("Failed to delete message:", err)
 	} else {
 		logger.Info("Message deleted successfully")
@@ -380,9 +347,7 @@ func (t *Tgbot) deleteMessageTgBot(chatId int64, messageID int) {
 
 // TestConnection verifies the bot token is valid and the API is reachable.
 func (t *Tgbot) TestConnection() error {
-	tgBotMutex.Lock()
-	b := bot
-	tgBotMutex.Unlock()
+	b := liveBot()
 	if b == nil {
 		return fmt.Errorf("bot not initialized")
 	}

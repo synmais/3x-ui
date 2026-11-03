@@ -1,8 +1,9 @@
 package tgbot
 
 import (
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 	"strings"
+
+	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 
 	synvpntgbot "github.com/mhsanaei/3x-ui/v3/internal/synvpn/tgbot"
 	"github.com/mymmrac/telego"
@@ -68,7 +69,7 @@ func (t *Tgbot) handleSynVPNClientCallback(query *telego.CallbackQuery, actor ch
 		if err != nil {
 			view.send(chatID, t.I18nBot("tgbot.answers.errorOperation"))
 		} else if len(traffics) > 0 {
-			t.getClientUsage(chatID, query.From.ID, traffics[0].Email, view)
+			t.getClientUsageSyn(chatID, query.From.ID, traffics[0].Email, view)
 		} else {
 			t.startRegistration(chatID, query.From, view)
 		}
@@ -91,10 +92,10 @@ func (t *Tgbot) handleSynVPNClientCallback(query *telego.CallbackQuery, actor ch
 		} else if len(traffics) == 0 {
 			t.showRegistrationPrompt(chatID, view)
 		} else if len(traffics) == 1 {
-			answer = t.I18nBot("tgbot.buttons.clientUsage")
-			t.getClientUsage(chatID, query.From.ID, traffics[0].Email, view)
+			answer = "Статистика клиента"
+			t.getClientUsageSyn(chatID, query.From.ID, traffics[0].Email, view)
 		} else {
-			answer = t.I18nBot("tgbot.buttons.clientUsage")
+			answer = "Статистика клиента"
 			buttons := make([]telego.InlineKeyboardButton, 0, len(traffics))
 			for _, traffic := range traffics {
 				buttons = append(buttons, tu.InlineKeyboardButton(traffic.Email).WithCallbackData(t.encodeQuery("client_traffic "+traffic.Email)))
@@ -128,7 +129,7 @@ func (t *Tgbot) handleSynVPNClientCallback(query *telego.CallbackQuery, actor ch
 			return true
 		}
 		if email, ok := strings.CutPrefix(data, "client_traffic "); ok {
-			t.getClientUsage(chatID, query.From.ID, email, view)
+			t.getClientUsageSyn(chatID, query.From.ID, email, view)
 			t.sendCallbackAnswerTgBot(query.ID, "")
 			return true
 		}
@@ -136,11 +137,16 @@ func (t *Tgbot) handleSynVPNClientCallback(query *telego.CallbackQuery, actor ch
 			t.sendCallbackAnswerTgBot(query.ID, "")
 			return true
 		}
-		action, email, ok := synvpntgbot.SplitClientLinkCallback(data)
-		if !ok || !t.clientOwnedByTgUser(query.From.ID, email) {
+
+		action, email, ok := splitClientLinkCallback(data)
+		if !ok {
+			return false
+		}
+		if !t.clientOwnedByTgUser(query.From.ID, email) {
 			t.sendCallbackAnswerTgBot(query.ID, t.I18nBot("tgbot.answers.errorOperation"))
 			return true
 		}
+
 		switch action {
 		case "client_sub_links":
 			t.sendClientSubLinks(chatID, email, view)
@@ -163,7 +169,7 @@ func (t *Tgbot) showClientLinkChoices(chatID, userID int64, action string, view 
 	if err != nil {
 		message := t.I18nBot("tgbot.answers.errorOperation") + "\r\n" + err.Error()
 		if action == "client_qr_links" {
-			message = t.I18nBot("tgbot.answers.errorOccurred") + "\r\n" + err.Error()
+			message = "Error Occurred" + "\r\n" + err.Error()
 		}
 		view.send(chatID, message)
 		return
@@ -198,30 +204,17 @@ func (t *Tgbot) showRegistrationPrompt(chatId int64, view ...*clientViewRenderer
 	)
 
 	if len(view) > 0 && view[0] != nil {
-		view[0].send(chatId, t.I18nBot("tgbot.answers.userNotRegistered"), inlineKeyboard)
+		view[0].send(chatId, "❌ Ваша конфигурация не найдена!\r\n\r\n👇 Пожалуйста, зарегистрируйтесь.", inlineKeyboard)
 	} else {
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.userNotRegistered"), inlineKeyboard)
+		t.SendMsgToTgbot(chatId, "❌ Ваша конфигурация не найдена!\r\n\r\n👇 Пожалуйста, зарегистрируйтесь.", inlineKeyboard)
 	}
 }
 
-// clientOwnedByTgUser reports whether email belongs to a client bound to this
-// Telegram account, the same list the self-service usage command reads.
-func (t *Tgbot) clientOwnedByTgUser(tgUserID int64, email string) bool {
-	traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
-	if err != nil {
-		return false
+// getClientUsageSyn retrieves and sends client usage information to the chat.
+func (t *Tgbot) getClientUsageSyn(chatId int64, tgUserID int64, email string, view ...*clientViewRenderer) {
+	send := func(chatID int64, text string, markup ...telego.ReplyMarkup) {
+		t.SendMsgToTgbot(chatID, text, markup...)
 	}
-	for _, traffic := range traffics {
-		if traffic.Email == email {
-			return true
-		}
-	}
-	return false
-}
-
-// getClientUsage retrieves and sends client usage information to the chat.
-func (t *Tgbot) getClientUsage(chatId int64, tgUserID int64, email string, view ...*clientViewRenderer) {
-	send := t.SendMsgToTgbot
 	if len(view) > 0 && view[0] != nil {
 		send = view[0].send
 	}

@@ -2,8 +2,6 @@ package tgbot
 
 import (
 	"context"
-	"errors"
-	"net/url"
 	"strings"
 	"time"
 
@@ -54,20 +52,6 @@ func (t *Tgbot) sendClientSubscriptionLinks(chatId int64, email string, withMenu
 	}
 }
 
-// clientSubLinks builds the subscription's links in-process for the host subURL
-// names; fetching subURL instead fails whenever that host does not resolve here.
-func (t *Tgbot) clientSubLinks(email, subURL string) ([]string, error) {
-	u, err := url.Parse(subURL)
-	if err != nil {
-		return nil, err
-	}
-	_, client, err := t.inboundService.GetClientByEmail(email)
-	if err != nil || client == nil {
-		return nil, errors.New("client not found")
-	}
-	return t.inboundService.GetSubLinks(u.Hostname(), client.SubID)
-}
-
 // sendClientIndividualLinks sends the subscription's individual links to the user
 func (t *Tgbot) sendClientIndividualLinks(chatId int64, email string, view ...*clientViewRenderer) {
 	subURL, _, err := t.buildSubscriptionURLs(email)
@@ -91,7 +75,7 @@ func (t *Tgbot) sendClientIndividualLinks(chatId int64, email string, view ...*c
 		j := min(i+maxPerMessage, len(links))
 		chunk := links[i:j]
 		var msg strings.Builder
-		msg.WriteString(t.I18nBot("subscription.individualLinks"))
+		msg.WriteString("Индивидуальные ссылки")
 		msg.WriteString(":\r\n")
 		for _, link := range chunk {
 			// wrap each link in <code>
