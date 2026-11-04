@@ -33,11 +33,11 @@ func (f *Flow) ProcessYooMoneyPayment(payment *model.Payment) error {
 
 	message := "🎉 <b>Оплата получена!</b>\n\n" +
 		"📱 <b>Рекомендуемые приложения:</b>\n\n" +
-		"• <a href=\"https://happ.info/\"><b>Happ</b></a> (временно недоступен в российском App Store)\n" +
+		"• <a href=\"https://happ.info/\"><b>Happ</b></a> (временно <b>недоступен</b> в российском App Store)\n" +
 		"(iOS / Android / Windows / Linux / macOS)\n" +
-		"• <a href=\"https://incy.app/\"><b>INCY</b></a>\n" +
+		"• <a href=\"https://incy.app/\"><b>INCY</b></a> (временно <b>недоступен</b> в российском App Store)\n" +
 		"(iOS / Android / Windows / Linux / macOS)\n" +
-		"• <a href=\"https://clashmi.app/download\"><b>Clash Mi</b></a>\n" +
+		"• <a href=\"https://clashmi.app/download\"><b>Clash Mi</b></a> (<b>доступен</b> в российском App Store)\n" +
 		"(iOS / Android / ATV / Windows / Linux / macOS)\n\n" +
 		"⚙️ Для Clash Mi при добавлении подписки не забудьте включить переключатель <b>X-HWID</b>.\n\n" +
 		"📚 Подробнее о способах подключения см. в разделе 📚 <b>Инструкции</b> главного меню.\n\n" +

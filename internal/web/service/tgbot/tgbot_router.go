@@ -280,6 +280,12 @@ func (t *Tgbot) answerCommand(message *telego.Message, chatId int64, isAdmin boo
 			return
 		}
 		t.clearBroadcastPrompt(messageActor(*message))
+
+		if !isAdmin {
+			t.sendResponse(chatId, t.I18nBot("tgbot.commands.pleaseChoose"), false, false)
+			return
+		}
+
 		t.screenHome(chatId, message.From.ID, screenSendNew)
 		return
 	case "status":
@@ -1291,7 +1297,7 @@ func isClientSelfCallback(data string) bool {
 // splitClientLinkCallback splits "<action> <email>" for the per-client link
 // callbacks; ok is false for every other data.
 func splitClientLinkCallback(data string) (action, email string, ok bool) {
-	for _, candidate := range []string{"client_sub_links", "client_individual_links", "client_qr_links"} {
+	for _, candidate := range []string{"client_sub_links", "client_individual_links", "client_qr_links", "client_renew"} {
 		if rest, found := strings.CutPrefix(data, candidate+" "); found && rest != "" {
 			return candidate, rest, true
 		}
