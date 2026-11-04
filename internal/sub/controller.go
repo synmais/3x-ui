@@ -740,7 +740,7 @@ func applyHwidHeaders(c *gin.Context, result service.HwidGateResult) {
 	if result.NotSupported {
 		c.Header("X-Hwid-Not-Supported", "true")
 	}
-	if result.LimitReached {
+	if result.LimitReached && !result.Allowed {
 		c.Header("X-Hwid-Limit", "true")
 	}
 	if result.MaxDevicesReached {
